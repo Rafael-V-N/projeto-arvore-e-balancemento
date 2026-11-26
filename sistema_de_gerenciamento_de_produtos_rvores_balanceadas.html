@@ -1,0 +1,2807 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema de Gerenciamento de Produtos — Árvores Balanceadas</title>
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Fontes Inter e JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* Estilização fina para barras de rolagem e transições dos nós SVG */
+    .custom-scroll::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    .dark .custom-scroll::-webkit-scrollbar-thumb {
+      background: #475569;
+    }
+    .svg-node {
+      cursor: pointer;
+      transition: transform 0.18s ease, filter 0.18s ease;
+    }
+    .svg-node:hover {
+      filter: brightness(1.12);
+    }
+    @keyframes pulseRing {
+      0% { stroke-opacity: 1; stroke-width: 4; }
+      50% { stroke-opacity: 0.45; stroke-width: 7; }
+      100% { stroke-opacity: 1; stroke-width: 4; }
+    }
+    .highlight-ring {
+      animation: pulseRing 1.4s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans antialiased min-h-screen flex flex-col transition-colors duration-200">
+
+  <!-- ===================================================================== -->
+  <!-- HEADER SUPERIOR COM MÉTRICAS EM TEMPO REAL                            -->
+  <!-- ===================================================================== -->
+  <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+      <!-- Identidade do Projeto -->
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-800 via-red-600 to-indigo-600 flex items-center justify-center text-white shadow-md shrink-0">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="5" r="2.5"></circle>
+              <circle cx="6" cy="18" r="2.5"></circle>
+              <circle cx="18" cy="18" r="2.5"></circle>
+              <path d="M10.5 7L7 15.5M13.5 7L17 15.5"></path>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">
+              Sistema de Gerenciamento de Produtos — Árvores Balanceadas
+            </h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              Estruturas de Dados • Rubro-Negra, 2-3-4 e k-D (Implementação 100% Manual em JS)
+            </p>
+          </div>
+        </div>
+
+        <!-- Botão Tema Claro/Escuro (Mobile) -->
+        <button id="btnThemeMobile" onclick="toggleTheme()" title="Alternar tema claro/escuro"
+          class="lg:hidden p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+          <span class="theme-icon-sun hidden dark:inline">☀️</span>
+          <span class="theme-icon-moon inline dark:hidden">🌙</span>
+        </button>
+      </div>
+
+      <!-- Contadores em Tempo Real + Ações Globais -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200/80 dark:border-red-900/60 text-xs">
+          <span class="w-2 h-2 rounded-full bg-red-600"></span>
+          <span class="text-slate-600 dark:text-slate-300">Nós RB:</span>
+          <strong id="metricRbCount" class="font-mono text-red-700 dark:text-red-300">21</strong>
+          <span class="text-slate-400">|</span>
+          <span class="text-slate-600 dark:text-slate-300">Altura:</span>
+          <strong id="metricRbHeight" class="font-mono text-red-700 dark:text-red-300">0</strong>
+        </div>
+
+        <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-900/60 text-xs">
+          <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
+          <span class="text-slate-600 dark:text-slate-300">Reg. 2-3-4:</span>
+          <strong id="metric234Count" class="font-mono text-indigo-700 dark:text-indigo-300">21</strong>
+          <span class="text-slate-400">|</span>
+          <span class="text-slate-600 dark:text-slate-300">Níveis:</span>
+          <strong id="metric234Levels" class="font-mono text-indigo-700 dark:text-indigo-300">0</strong>
+        </div>
+
+        <!-- Badge de Integridade Matemática -->
+        <div id="badgeIntegrity" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          <span id="badgeIntegrityText">Integridade Válida</span>
+        </div>
+
+        <!-- Botão Restaurar 21 Produtos -->
+        <button onclick="restaurarCargaInicial()"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-200 text-xs font-semibold shadow-sm transition active:scale-95">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Restaurar 21 Produtos
+        </button>
+
+        <!-- Botão Tema (Desktop) -->
+        <button onclick="toggleTheme()" title="Alternar tema claro/escuro"
+          class="hidden lg:inline-flex items-center justify-center p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition text-sm">
+          <span class="theme-icon-sun hidden dark:inline">☀️</span>
+          <span class="theme-icon-moon inline dark:hidden">🌙</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- CONTAINER DE TOASTS / NOTIFICAÇÕES                                    -->
+  <!-- ===================================================================== -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-[calc(100%-2rem)] pointer-events-none"></div>
+
+  <!-- ===================================================================== -->
+  <!-- CORPO PRINCIPAL (SIDEBAR ESQUERDA + ÁREA PRINCIPAL COM 4 ABAS)        -->
+  <!-- ===================================================================== -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 py-5 grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+
+    <!-- =================================================================== -->
+    <!-- BARRA LATERAL ESQUERDA (OPERAÇÕES + ROTEIRO DE 6 PASSOS)            -->
+    <!-- =================================================================== -->
+    <aside class="xl:col-span-3 space-y-4">
+
+      <!-- 1. Formulário Cadastrar / Atualizar Produto -->
+      <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <span class="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-xs font-bold">+</span>
+            Cadastrar / Atualizar Produto
+          </h2>
+          <button type="button" onclick="limparFormulario()" class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline">
+            Limpar
+          </button>
+        </div>
+
+        <form id="formProduto" onsubmit="handleSalvarProduto(event)" class="space-y-2.5">
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label for="inpCodigo" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Código *</label>
+              <input id="inpCodigo" type="number" required min="1" step="1" placeholder="Ex: 150"
+                class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label for="inpEstoque" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Estoque *</label>
+              <input id="inpEstoque" type="number" required min="0" step="1" placeholder="Ex: 15"
+                class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+
+          <div>
+            <label for="inpNome" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Nome do Produto *</label>
+            <input id="inpNome" type="text" required placeholder="Ex: Roteador Wi-Fi 6"
+              class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label for="inpCategoria" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Categoria *</label>
+              <input id="inpCategoria" type="text" required list="listaCategorias" placeholder="Informática"
+                class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <datalist id="listaCategorias">
+                <option value="Informática"></option>
+                <option value="Redes"></option>
+                <option value="Periféricos"></option>
+                <option value="Armazenamento"></option>
+                <option value="Hardware"></option>
+                <option value="Acessórios"></option>
+              </datalist>
+            </div>
+            <div>
+              <label for="inpPreco" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Preço (R$) *</label>
+              <input id="inpPreco" type="number" required min="0.01" step="0.01" placeholder="155.00"
+                class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 leading-snug bg-slate-50 dark:bg-slate-800/60 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+            <strong>Regra de repetição:</strong> se o código já existir, os dados são atualizados nas duas árvores sem duplicar nós.
+          </p>
+
+          <button type="submit"
+            class="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm transition active:scale-[0.99]">
+            Salvar nas Duas Árvores
+          </button>
+        </form>
+      </section>
+
+      <!-- 2. Caixa Buscar Produto -->
+      <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4">
+        <h2 class="text-sm font-bold text-slate-900 dark:text-white mb-2.5 flex items-center gap-2">
+          <span class="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 flex items-center justify-center text-xs">🔍</span>
+          Buscar Produto
+        </h2>
+        <form onsubmit="handleBuscarProduto(event)" class="flex gap-2">
+          <input id="inpBuscaCodigo" type="number" required min="1" step="1" placeholder="Código (ex: 110)"
+            class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          <button type="submit"
+            class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold shadow-sm transition shrink-0">
+            Buscar
+          </button>
+        </form>
+
+        <!-- Resultado da Busca -->
+        <div id="resultadoBuscaBox" class="hidden mt-3 p-3 rounded-xl text-xs border"></div>
+      </section>
+
+      <!-- 3. Caixa Excluir Produto -->
+      <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4">
+        <h2 class="text-sm font-bold text-slate-900 dark:text-white mb-2.5 flex items-center gap-2">
+          <span class="w-6 h-6 rounded-lg bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 flex items-center justify-center text-xs">✕</span>
+          Excluir Produto
+        </h2>
+        <form onsubmit="handlePrepararExclusao(event)" class="flex gap-2">
+          <input id="inpExcluirCodigo" type="number" required min="1" step="1" placeholder="Código (ex: 105)"
+            class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-500" />
+          <button type="submit"
+            class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold shadow-sm transition shrink-0">
+            Excluir
+          </button>
+        </form>
+
+        <!-- Confirmação Visual Inline (sem confirm() nativo) -->
+        <div id="confirmacaoExclusaoBox" class="hidden mt-3 p-3 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 text-xs">
+          <p id="confirmacaoExclusaoTexto" class="text-red-800 dark:text-red-200 font-medium mb-2"></p>
+          <div class="flex gap-2">
+            <button type="button" onclick="confirmarExclusaoPendente()"
+              class="flex-1 py-1.5 px-3 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold transition">
+              Confirmar Exclusão
+            </button>
+            <button type="button" onclick="cancelarExclusaoPendente()"
+              class="py-1.5 px-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. Roteiro de Demonstração ao Vivo (6 Passos do PDF) -->
+      <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <span class="w-6 h-6 rounded-lg bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 flex items-center justify-center text-xs font-bold">▶</span>
+            Roteiro ao Vivo (6 Passos)
+          </h2>
+          <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">Apresentação</span>
+        </div>
+        <p class="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+          Execute a sequência oficial da apresentação com um clique:
+        </p>
+        <div class="space-y-1.5">
+          <button onclick="executarPassoDemo(1)" id="demoBtn1"
+            class="demo-step-btn w-full text-left px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 transition flex items-center gap-2.5 text-xs">
+            <span class="w-5 h-5 rounded-md bg-slate-800 dark:bg-slate-700 text-white font-mono text-[10px] font-bold flex items-center justify-center shrink-0">01</span>
+            <span><strong>Listar</strong> os 21 códigos iniciais</span>
+          </button>
+
+          <button onclick="executarPassoDemo(2)" id="demoBtn2"
+            class="demo-step-btn w-full text-left px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition flex items-center gap-2.5 text-xs">
+            <span class="w-5 h-5 rounded-md bg-amber-500 text-white font-mono text-[10px] font-bold flex items-center justify-center shrink-0">02</span>
+            <span><strong>Buscar</strong> 110 (Switch) e 999 (Inexistente)</span>
+          </button>
+
+          <button onclick="executarPassoDemo(3)" id="demoBtn3"
+            class="demo-step-btn w-full text-left px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 transition flex items-center gap-2.5 text-xs">
+            <span class="w-5 h-5 rounded-md bg-emerald-600 text-white font-mono text-[10px] font-bold flex items-center justify-center shrink-0">03</span>
+            <span><strong>Cadastrar</strong> 150 (Roteador Wi-Fi 6)</span>
+          </button>
+
+          <button onclick="executarPassoDemo(4)" id="demoBtn4"
+            class="demo-step-btn w-full text-left px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 transition flex items-center gap-2.5 text-xs">
+            <span class="w-5 h-5 rounded-md bg-blue-600 text-white font-mono text-[10px] font-bold flex items-center justify-center shrink-0">04</span>
+            <span><strong>Repetir</strong> 150 (Atualizar preço/estoque)</span>
+          </button>
+
+          <button onclick="executarPassoDemo(5)" id="demoBtn5"
+            class="demo-step-btn w-full text-left px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-red-400 dark:hover:border-red-500 hover:bg-red-50/50 dark:hover:bg-red-950/30 transition flex items-center gap-2.5 text-xs">
+            <span class="w-5 h-5 rounded-md bg-red-600 text-white font-mono text-[10px] font-bold flex items-center justify-center shrink-0">05</span>
+            <span><strong>Excluir</strong> 105 e verificar busca</span>
+          </button>
+
+          <button onclick="executarPassoDemo(6)" id="demoBtn6"
+            class="demo-step-btn w-full text-left px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-950/30 transition flex items-center gap-2.5 text-xs">
+            <span class="w-5 h-5 rounded-md bg-purple-600 text-white font-mono text-[10px] font-bold flex items-center justify-center shrink-0">06</span>
+            <span><strong>Visualizar</strong> Rubro-Negra &amp; 2-3-4</span>
+          </button>
+        </div>
+      </section>
+    </aside>
+
+    <!-- =================================================================== -->
+    <!-- ÁREA PRINCIPAL COM 4 ABAS                                           -->
+    <!-- =================================================================== -->
+    <section class="xl:col-span-9 space-y-4 min-w-0">
+
+      <!-- Navegação de Abas -->
+      <nav class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-1.5 shadow-sm flex flex-wrap gap-1.5" role="tablist">
+        <button onclick="mudarAba('arvores')" id="tabBtn-arvores"
+          class="tab-btn flex-1 min-w-[150px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 bg-slate-900 text-white dark:bg-indigo-600 shadow-sm">
+          <span>🌳</span> Visualizar Árvores (RB &amp; 2-3-4)
+        </button>
+        <button onclick="mudarAba('lista')" id="tabBtn-lista"
+          class="tab-btn flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+          <span>📋</span> Lista de Produtos (<span id="tabListCount">21</span>)
+        </button>
+        <button onclick="mudarAba('kd')" id="tabBtn-kd"
+          class="tab-btn flex-1 min-w-[150px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+          <span>🧭</span> Árvore k-D (Espacial 2D)
+        </button>
+        <button onclick="mudarAba('testes')" id="tabBtn-testes"
+          class="tab-btn flex-1 min-w-[150px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+          <span>✅</span> Testes &amp; Comparação
+        </button>
+      </nav>
+
+      <!-- ================================================================= -->
+      <!-- ABA 1: VISUALIZAR ÁRVORES (RUBRO-NEGRA & 2-3-4)                   -->
+      <!-- ================================================================= -->
+      <div id="tabPanel-arvores" class="tab-panel space-y-4">
+
+        <!-- Barra de Controles de Layout e Zoom -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 mr-1">Exibição:</span>
+            <button onclick="setTreeViewMode('both')" id="viewMode-both"
+              class="view-mode-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-white dark:bg-indigo-600 transition">
+              Empilhado (Ambas)
+            </button>
+            <button onclick="setTreeViewMode('rb')" id="viewMode-rb"
+              class="view-mode-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+              Só Rubro-Negra
+            </button>
+            <button onclick="setTreeViewMode('234')" id="viewMode-234"
+              class="view-mode-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+              Só Árvore 2-3-4
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="limparDestaques()" id="btnLimparDestaque" class="hidden px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 hover:bg-amber-200 transition">
+              Limpar Destaque
+            </button>
+            <div class="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800">
+              <button onclick="ajustarZoom(-0.15)" class="px-2.5 py-1.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition" title="Diminuir Zoom">−</button>
+              <button onclick="ajustarZoom(0)" id="zoomLabel" class="px-2.5 py-1.5 text-xs font-mono font-semibold border-x border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition" title="Resetar Zoom">100%</button>
+              <button onclick="ajustarZoom(0.15)" class="px-2.5 py-1.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition" title="Aumentar Zoom">+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Detalhe do Nó Selecionado (ao clicar em um nó SVG) -->
+        <div id="nodeInspectorCard" class="hidden bg-gradient-to-r from-indigo-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/40 rounded-2xl border border-indigo-200 dark:border-indigo-800 p-4 shadow-sm">
+          <div class="flex items-start justify-between gap-3">
+            <div id="nodeInspectorContent" class="flex-1 text-xs sm:text-sm"></div>
+            <button onclick="fecharInspector()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 transition" title="Fechar inspetor">
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <!-- Card Visualização Árvore Rubro-Negra -->
+        <div id="cardRbTree" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-800/40">
+            <div class="flex items-center gap-2.5">
+              <span class="w-3 h-3 rounded-full bg-red-600 ring-4 ring-red-100 dark:ring-red-900/50"></span>
+              <div>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Árvore Binária Rubro-Negra (Red-Black Tree)</h3>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400">Clique em qualquer nó para inspecionar ou editar o produto • Altura negra uniforme</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 text-[11px] font-semibold">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-[#1e293b] inline-block"></span> Preto</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-[#dc2626] inline-block"></span> Vermelho</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-400 inline-block"></span> Busca/Caminho</span>
+              <span id="rbBlackHeightTag" class="px-2 py-0.5 rounded-md bg-slate-200/80 dark:bg-slate-700 font-mono">Altura Negra: 0</span>
+            </div>
+          </div>
+          <div class="p-3 overflow-x-auto custom-scroll bg-white dark:bg-slate-950/40">
+            <div id="rbSvgContainer" class="min-w-full flex justify-center"></div>
+          </div>
+        </div>
+
+        <!-- Card Visualização Árvore 2-3-4 -->
+        <div id="card234Tree" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-800/40">
+            <div class="flex items-center gap-2.5">
+              <span class="w-3 h-3 rounded-md bg-indigo-600 ring-4 ring-indigo-100 dark:ring-indigo-900/50"></span>
+              <div>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Árvore Não-Binária 2-3-4 (B-Tree de Grau Mínimo t = 2)</h3>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400">Nós com 1 a 3 chaves ordenadas • Todas as folhas exatamente no mesmo nível</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 text-[11px] font-semibold">
+              <span class="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-200">Nó 2 (1 chave)</span>
+              <span class="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">Nó 3 (2 chaves)</span>
+              <span class="px-2 py-0.5 rounded-md bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200">Nó 4 (3 chaves)</span>
+            </div>
+          </div>
+          <div class="p-3 overflow-x-auto custom-scroll bg-white dark:bg-slate-950/40">
+            <div id="t234SvgContainer" class="min-w-full flex justify-center"></div>
+          </div>
+        </div>
+
+        <!-- Painel de Log de Balanceamento -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div class="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-800/40">
+            <h3 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span>⚡</span> Log de Operações e Balanceamento (Rotações, Recolorações, Splits &amp; Merges)
+            </h3>
+            <button onclick="limparLogs()" class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">Limpar Log</button>
+          </div>
+          <div id="logContainer" class="p-3 max-h-56 overflow-y-auto custom-scroll space-y-1.5 font-mono text-xs bg-slate-50/50 dark:bg-slate-950/60"></div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- ABA 2: LISTA DE PRODUTOS                                          -->
+      <!-- ================================================================= -->
+      <div id="tabPanel-lista" class="tab-panel hidden space-y-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-base font-bold text-slate-900 dark:text-white">Catálogo Ordenado (Percurso Em-Ordem)</h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Listagem extraída em ordem crescente diretamente da Árvore Rubro-Negra e validada com a Árvore 2-3-4</p>
+            </div>
+            <div class="relative sm:w-72">
+              <input id="inpFiltroTabela" type="text" oninput="renderTabelaProdutos()" placeholder="Filtrar por código, nome ou categoria..."
+                class="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <span class="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto custom-scroll">
+            <table class="w-full text-left border-collapse text-xs sm:text-sm">
+              <thead>
+                <tr class="bg-slate-50 dark:bg-slate-800/70 text-slate-500 dark:text-slate-400 uppercase text-[11px] tracking-wider border-b border-slate-200 dark:border-slate-800">
+                  <th class="py-3 px-4 font-bold">Código</th>
+                  <th class="py-3 px-4 font-bold">Produto</th>
+                  <th class="py-3 px-4 font-bold">Categoria</th>
+                  <th class="py-3 px-4 font-bold text-right">Preço (R$)</th>
+                  <th class="py-3 px-4 font-bold text-center">Estoque</th>
+                  <th class="py-3 px-4 font-bold text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaProdutosBody" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- ABA 3: ÁRVORE k-D (ESPACIAL 2D)                                   -->
+      <!-- ================================================================= -->
+      <div id="tabPanel-kd" class="tab-panel hidden space-y-4">
+
+        <!-- Explicação Teórica + Controles -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-5 space-y-4">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-300 mb-1">
+                Árvore Espacial k = 2
+              </span>
+              <h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Árvore k-D: Organização Espacial por Dimensões (X e Y)</h3>
+              <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+                A dimensão de comparação alterna a cada nível (<strong class="text-red-600 dark:text-red-400">Nível 0: X</strong>, <strong class="text-blue-600 dark:text-blue-400">Nível 1: Y</strong>, <strong class="text-red-600 dark:text-red-400">Nível 2: X</strong>...). Menor vai para a esquerda; maior ou igual vai para a direita.
+              </p>
+            </div>
+            <button onclick="resetarArvoreKD()"
+              class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold transition shrink-0">
+              Restaurar 5 Pontos Padrão
+            </button>
+          </div>
+
+          <!-- Formulários de Inserção e Busca de Vizinho Mais Próximo -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <form onsubmit="handleInserirPontoKD(event)" class="flex flex-wrap items-end gap-2 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200/70 dark:border-slate-800">
+              <div class="w-full text-xs font-bold text-slate-700 dark:text-slate-200">Adicionar Ponto (X, Y)</div>
+              <div class="flex-1 min-w-[70px]">
+                <label class="block text-[10px] uppercase font-semibold text-slate-500">X (0 a 12)</label>
+                <input id="kdAddX" type="number" step="0.5" min="0" max="12" required placeholder="4"
+                  class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono" />
+              </div>
+              <div class="flex-1 min-w-[70px]">
+                <label class="block text-[10px] uppercase font-semibold text-slate-500">Y (0 a 12)</label>
+                <input id="kdAddY" type="number" step="0.5" min="0" max="12" required placeholder="9"
+                  class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono" />
+              </div>
+              <button type="submit" class="px-3.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition">
+                + Inserir
+              </button>
+            </form>
+
+            <form onsubmit="handleBuscarVizinhoKD(event)" class="flex flex-wrap items-end gap-2 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200/70 dark:border-slate-800">
+              <div class="w-full text-xs font-bold text-slate-700 dark:text-slate-200">Buscar Vizinho Mais Próximo (Nearest Neighbor)</div>
+              <div class="flex-1 min-w-[70px]">
+                <label class="block text-[10px] uppercase font-semibold text-slate-500">Alvo X</label>
+                <input id="kdQueryX" type="number" step="0.5" min="0" max="12" required value="7"
+                  class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono" />
+              </div>
+              <div class="flex-1 min-w-[70px]">
+                <label class="block text-[10px] uppercase font-semibold text-slate-500">Alvo Y</label>
+                <input id="kdQueryY" type="number" step="0.5" min="0" max="12" required value="5"
+                  class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono" />
+              </div>
+              <button type="submit" class="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition">
+                Buscar Próximo
+              </button>
+            </form>
+          </div>
+
+          <div id="kdResultadoBusca" class="hidden p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200"></div>
+        </div>
+
+        <!-- Visualização Dupla: Plano Cartesiano + Árvore Binária k-D -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-sm font-bold text-slate-900 dark:text-white">Plano Cartesiano 2D (Particionamento)</h4>
+              <div class="flex items-center gap-3 text-[11px] font-semibold">
+                <span class="flex items-center gap-1 text-red-600 dark:text-red-400"><span class="w-3 h-0.5 bg-red-600 inline-block"></span> Corte X</span>
+                <span class="flex items-center gap-1 text-blue-600 dark:text-blue-400"><span class="w-3 h-0.5 bg-blue-600 inline-block"></span> Corte Y</span>
+              </div>
+            </div>
+            <div id="kdPlaneSvgContainer" class="w-full flex justify-center overflow-x-auto custom-scroll"></div>
+          </div>
+
+          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-sm font-bold text-slate-900 dark:text-white">Estrutura Binária da Árvore k-D</h4>
+              <span class="text-[11px] text-slate-500 dark:text-slate-400">Eixo alternado por profundidade</span>
+            </div>
+            <div id="kdTreeSvgContainer" class="w-full flex justify-center overflow-x-auto custom-scroll"></div>
+            <p class="mt-3 text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+              <strong>Observação acadêmica:</strong> Diferente da Rubro-Negra e da 2-3-4, a Árvore k-D básica <em>não garante balanceamento automático</em> na inserção dinâmica; sua eficiência depende da distribuição e ordem de entrada dos pontos.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- ABA 4: TESTES AUTOMÁTICOS & COMPARAÇÃO                            -->
+      <!-- ================================================================= -->
+      <div id="tabPanel-testes" class="tab-panel hidden space-y-4">
+
+        <!-- Suíte de Testes Automáticos -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Verificação Automatizada das Estruturas</h3>
+              <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                Executa 6 baterias de asserções em instâncias isoladas, validando todas as invariantes matemáticas da Rubro-Negra e da 2-3-4.
+              </p>
+            </div>
+            <button onclick="executarSuiteDeTestes()"
+              class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-sm transition active:scale-95 shrink-0">
+              ▶ Executar Suíte de Testes Automáticos
+            </button>
+          </div>
+
+          <!-- Banner de Resultado -->
+          <div id="testBanner" class="hidden rounded-2xl p-4 border"></div>
+
+          <!-- Lista de Asserções -->
+          <div id="testResultsList" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+        </div>
+
+        <!-- Tabela Comparativa entre Rubro-Negra, 2-3-4 e k-D -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div class="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800">
+            <h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Comparação Técnica dos Métodos de Balanceamento</h3>
+            <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Diferenças estruturais, operacionais e assintóticas das três árvores estudadas no trabalho</p>
+          </div>
+
+          <div class="overflow-x-auto custom-scroll">
+            <table class="w-full text-left border-collapse text-xs sm:text-sm">
+              <thead>
+                <tr class="bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
+                  <th class="py-3 px-4 font-bold">Critério</th>
+                  <th class="py-3 px-4 font-bold text-red-700 dark:text-red-400">Árvore Rubro-Negra</th>
+                  <th class="py-3 px-4 font-bold text-indigo-700 dark:text-indigo-400">Árvore 2-3-4</th>
+                  <th class="py-3 px-4 font-bold text-teal-700 dark:text-teal-400">Árvore k-D</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                <tr>
+                  <td class="py-3 px-4 font-semibold text-slate-700 dark:text-slate-200">Classificação</td>
+                  <td class="py-3 px-4">Árvore Binária de Busca Auto-Balanceada</td>
+                  <td class="py-3 px-4">Árvore Multiway (B-Tree de grau mínimo t = 2)</td>
+                  <td class="py-3 px-4">Árvore Binária Espacial (k dimensões)</td>
+                </tr>
+                <tr>
+                  <td class="py-3 px-4 font-semibold text-slate-700 dark:text-slate-200">Como se Organiza</td>
+                  <td class="py-3 px-4">Cores (Vermelho/Preto) nos nós garantindo altura negra igual até toda folha NIL.</td>
+                  <td class="py-3 px-4">Nós de 1 a 3 chaves e até 4 filhos; todas as folhas permanecem na mesma profundidade.</td>
+                  <td class="py-3 px-4">Alterna a dimensão de comparação em cada nível (X no nível 0, Y no nível 1, X no nível 2...).</td>
+                </tr>
+                <tr>
+                  <td class="py-3 px-4 font-semibold text-slate-700 dark:text-slate-200">Operações de Balanceamento</td>
+                  <td class="py-3 px-4">Recoloração de nós e rotações locais simples/duplas à esquerda e à direita.</td>
+                  <td class="py-3 px-4">Divisão (<em>Split</em>) na inserção; Empréstimo entre irmãos e Fusão (<em>Merge</em>) na exclusão.</td>
+                  <td class="py-3 px-4">Não possui balanceamento automático na inserção básica (requer construção por mediana ou reconstrução).</td>
+                </tr>
+                <tr>
+                  <td class="py-3 px-4 font-semibold text-slate-700 dark:text-slate-200">Complexidade (Pior Caso)</td>
+                  <td class="py-3 px-4 font-mono font-semibold text-emerald-700 dark:text-emerald-400">O(log n) — Busca, Inserção e Exclusão</td>
+                  <td class="py-3 px-4 font-mono font-semibold text-emerald-700 dark:text-emerald-400">O(log n) — Busca, Inserção e Exclusão</td>
+                  <td class="py-3 px-4 font-mono font-semibold text-amber-700 dark:text-amber-400">O(n) no pior caso / O(log n) médio</td>
+                </tr>
+                <tr>
+                  <td class="py-3 px-4 font-semibold text-slate-700 dark:text-slate-200">Casos de Uso Reais</td>
+                  <td class="py-3 px-4"><code>TreeMap</code>/<code>TreeSet</code> em Java, <code>std::map</code> em C++, agendador CFS do Linux.</td>
+                  <td class="py-3 px-4">Base conceitual das B-Trees e B+ Trees em SGBDs (PostgreSQL, MySQL) e sistemas de arquivos.</td>
+                  <td class="py-3 px-4">Mapas, GPS, geolocalização, busca por vizinho mais próximo (KNN) e computação gráfica.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <footer class="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 py-3 px-4 text-center text-xs text-slate-500 dark:text-slate-400">
+    Trabalho de Estruturas de Dados — Árvores Balanceadas (Rubro-Negra, 2-3-4 e k-D) • Aplicação Prática de Gerenciamento de Produtos
+  </footer>
+
+  <!-- ===================================================================== -->
+  <!-- JAVASCRIPT PURO: ALGORITMOS + VISUALIZAÇÃO SVG + CONTROLADOR DA UI    -->
+  <!-- ===================================================================== -->
+  <script>
+    'use strict';
+
+    /* =======================================================================
+     * 1. MODELO DE PRODUTO E BASE INICIAL DE 21 PRODUTOS
+     * ======================================================================= */
+    class Produto {
+      constructor(codigo, nome, categoria, preco, estoque) {
+        this.codigo = Number(codigo);
+        this.nome = String(nome).trim();
+        this.categoria = String(categoria).trim();
+        this.preco = Number(preco);
+        this.estoque = Number(estoque);
+      }
+
+      clonar() {
+        return new Produto(this.codigo, this.nome, this.categoria, this.preco, this.estoque);
+      }
+
+      atualizarCom(outro) {
+        this.nome = outro.nome;
+        this.categoria = outro.categoria;
+        this.preco = outro.preco;
+        this.estoque = outro.estoque;
+      }
+    }
+
+    // Exatamente 21 produtos iniciais (contém 110 = Switch e 105; NÃO contém 150)
+    const CARGA_INICIAL_PRODUTOS = [
+      { codigo: 120, nome: 'Monitor 27" IPS Full HD', categoria: 'Informática', preco: 1189.90, estoque: 14 },
+      { codigo: 110, nome: 'Switch', categoria: 'Informática', preco: 155.00, estoque: 15 },
+      { codigo: 135, nome: 'SSD NVMe 1TB M.2', categoria: 'Armazenamento', preco: 469.00, estoque: 26 },
+      { codigo: 105, nome: 'Mouse Óptico Sem Fio', categoria: 'Periféricos', preco: 89.90, estoque: 42 },
+      { codigo: 115, nome: 'Teclado Mecânico ABNT2', categoria: 'Periféricos', preco: 299.50, estoque: 22 },
+      { codigo: 128, nome: 'Headset USB com Microfone', categoria: 'Periféricos', preco: 219.00, estoque: 19 },
+      { codigo: 145, nome: 'Fonte ATX 650W 80 Plus', categoria: 'Hardware', preco: 389.00, estoque: 11 },
+      { codigo: 100, nome: 'Cabo de Rede Cat6 5m', categoria: 'Redes', preco: 28.50, estoque: 85 },
+      { codigo: 108, nome: 'Webcam Full HD 1080p', categoria: 'Periféricos', preco: 195.00, estoque: 18 },
+      { codigo: 112, nome: 'Hub USB-C 7 Portas', categoria: 'Acessórios', preco: 149.90, estoque: 30 },
+      { codigo: 118, nome: 'Adaptador Wi-Fi Dual Band', categoria: 'Redes', preco: 79.90, estoque: 34 },
+      { codigo: 125, nome: 'Memória RAM DDR4 16GB', categoria: 'Hardware', preco: 279.00, estoque: 25 },
+      { codigo: 132, nome: 'HD Externo Portátil 2TB', categoria: 'Armazenamento', preco: 419.90, estoque: 16 },
+      { codigo: 140, nome: 'Placa-Mãe Micro-ATX', categoria: 'Hardware', preco: 649.00, estoque: 9 },
+      { codigo: 155, nome: 'Nobreak Senoidal 1200VA', categoria: 'Informática', preco: 890.00, estoque: 7 },
+      { codigo: 102, nome: 'Mousepad Speed Grande', categoria: 'Acessórios', preco: 54.90, estoque: 50 },
+      { codigo: 122, nome: 'Suporte Articulado Monitor', categoria: 'Acessórios', preco: 179.00, estoque: 21 },
+      { codigo: 130, nome: 'Pen Drive USB 3.2 128GB', categoria: 'Armazenamento', preco: 69.90, estoque: 60 },
+      { codigo: 138, nome: 'Cooler Torre RGB 120mm', categoria: 'Hardware', preco: 139.00, estoque: 20 },
+      { codigo: 142, nome: 'Gabinete Mid-Tower Vidro', categoria: 'Hardware', preco: 349.00, estoque: 12 },
+      { codigo: 148, nome: 'Caixa de Som Estéreo USB', categoria: 'Periféricos', preco: 119.00, estoque: 24 },
+    ];
+
+    /* =======================================================================
+     * 2. ÁRVORE BINÁRIA RUBRO-NEGRA (RED-BLACK TREE) — IMPLEMENTAÇÃO MANUAL
+     * ======================================================================= */
+    const COR_VERMELHO = 'VERMELHO';
+    const COR_PRETO = 'PRETO';
+
+    class NoRubroNegro {
+      constructor(produto, cor = COR_VERMELHO, nil = null) {
+        this.produto = produto;
+        this.cor = cor;
+        this.esquerda = nil;
+        this.direita = nil;
+        this.pai = nil;
+      }
+    }
+
+    class ArvoreRubroNegra {
+      constructor() {
+        // Nó sentinela NIL (sempre PRETO)
+        this.NIL = new NoRubroNegro(null, COR_PRETO, null);
+        this.NIL.esquerda = this.NIL;
+        this.NIL.direita = this.NIL;
+        this.NIL.pai = this.NIL;
+        this.raiz = this.NIL;
+        this.logs = [];
+      }
+
+      _registrarLog(msg) {
+        this.logs.push(msg);
+      }
+
+      /** Busca binária retornando o nó encontrado e a lista de códigos do caminho */
+      buscar(codigo) {
+        const alvo = Number(codigo);
+        const caminho = [];
+        let atual = this.raiz;
+        while (atual !== this.NIL) {
+          caminho.push(atual.produto.codigo);
+          if (alvo === atual.produto.codigo) {
+            return { encontrado: true, produto: atual.produto, no: atual, caminho };
+          } else if (alvo < atual.produto.codigo) {
+            atual = atual.esquerda;
+          } else {
+            atual = atual.direita;
+          }
+        }
+        return { encontrado: false, produto: null, no: null, caminho };
+      }
+
+      /** Rotação à esquerda em torno de x */
+      _rotacaoEsquerda(x) {
+        const y = x.direita;
+        this._registrarLog(`[RB] Rotação à ESQUERDA em torno do código ${x.produto.codigo} (sobe ${y.produto.codigo})`);
+        x.direita = y.esquerda;
+        if (y.esquerda !== this.NIL) {
+          y.esquerda.pai = x;
+        }
+        y.pai = x.pai;
+        if (x.pai === this.NIL) {
+          this.raiz = y;
+        } else if (x === x.pai.esquerda) {
+          x.pai.esquerda = y;
+        } else {
+          x.pai.direita = y;
+        }
+        y.esquerda = x;
+        x.pai = y;
+      }
+
+      /** Rotação à direita em torno de x */
+      _rotacaoDireita(x) {
+        const y = x.esquerda;
+        this._registrarLog(`[RB] Rotação à DIREITA em torno do código ${x.produto.codigo} (sobe ${y.produto.codigo})`);
+        x.esquerda = y.direita;
+        if (y.direita !== this.NIL) {
+          y.direita.pai = x;
+        }
+        y.pai = x.pai;
+        if (x.pai === this.NIL) {
+          this.raiz = y;
+        } else if (x === x.pai.direita) {
+          x.pai.direita = y;
+        } else {
+          x.pai.esquerda = y;
+        }
+        y.direita = x;
+        x.pai = y;
+      }
+
+      /** Inserção com política de atualização de duplicatas e balanceamento */
+      inserir(produto) {
+        this.logs = [];
+        const copia = produto.clonar();
+
+        // Verifica repetição: atualiza sem duplicar nó
+        const busca = this.buscar(copia.codigo);
+        if (busca.encontrado) {
+          busca.no.produto.atualizarCom(copia);
+          this._registrarLog(`[RB] Chave repetida ${copia.codigo}: dados atualizados no nó existente (sem duplicação).`);
+          return { status: 'atualizado', logs: [...this.logs] };
+        }
+
+        const z = new NoRubroNegro(copia, COR_VERMELHO, this.NIL);
+        let y = this.NIL;
+        let x = this.raiz;
+
+        while (x !== this.NIL) {
+          y = x;
+          if (z.produto.codigo < x.produto.codigo) {
+            x = x.esquerda;
+          } else {
+            x = x.direita;
+          }
+        }
+
+        z.pai = y;
+        if (y === this.NIL) {
+          this.raiz = z;
+        } else if (z.produto.codigo < y.produto.codigo) {
+          y.esquerda = z;
+        } else {
+          y.direita = z;
+        }
+
+        this._registrarLog(`[RB] Nó ${copia.codigo} inserido como VERMELHO.`);
+        this._corrigirInsercao(z);
+        return { status: 'inserido', logs: [...this.logs] };
+      }
+
+      /** Correção das propriedades após inserção (Casos 1, 2 e 3 simétricos) */
+      _corrigirInsercao(z) {
+        while (z.pai.cor === COR_VERMELHO) {
+          if (z.pai === z.pai.pai.esquerda) {
+            const tio = z.pai.pai.direita;
+            if (tio.cor === COR_VERMELHO) {
+              // Caso 1: Tio vermelho -> Recoloração
+              this._registrarLog(`[RB] Caso 1 (Tio ${tio.produto.codigo} vermelho): recoloração de pai ${z.pai.produto.codigo}, tio ${tio.produto.codigo} e avô ${z.pai.pai.produto.codigo}.`);
+              z.pai.cor = COR_PRETO;
+              tio.cor = COR_PRETO;
+              z.pai.pai.cor = COR_VERMELHO;
+              z = z.pai.pai;
+            } else {
+              if (z === z.pai.direita) {
+                // Caso 2: Triângulo -> Rotação esquerda no pai
+                this._registrarLog(`[RB] Caso 2 (Triângulo em ${z.produto.codigo}): preparando rotação dupla.`);
+                z = z.pai;
+                this._rotacaoEsquerda(z);
+              }
+              // Caso 3: Linha -> Recoloração + Rotação direita no avô
+              this._registrarLog(`[RB] Caso 3 (Linha): recolorindo pai ${z.pai.produto.codigo} (PRETO) e avô ${z.pai.pai.produto.codigo} (VERMELHO).`);
+              z.pai.cor = COR_PRETO;
+              z.pai.pai.cor = COR_VERMELHO;
+              this._rotacaoDireita(z.pai.pai);
+            }
+          } else {
+            const tio = z.pai.pai.esquerda;
+            if (tio.cor === COR_VERMELHO) {
+              // Caso 1 simétrico
+              this._registrarLog(`[RB] Caso 1 (Tio ${tio.produto.codigo} vermelho): recoloração de pai ${z.pai.produto.codigo}, tio ${tio.produto.codigo} e avô ${z.pai.pai.produto.codigo}.`);
+              z.pai.cor = COR_PRETO;
+              tio.cor = COR_PRETO;
+              z.pai.pai.cor = COR_VERMELHO;
+              z = z.pai.pai;
+            } else {
+              if (z === z.pai.esquerda) {
+                // Caso 2 simétrico
+                this._registrarLog(`[RB] Caso 2 (Triângulo em ${z.produto.codigo}): preparando rotação dupla.`);
+                z = z.pai;
+                this._rotacaoDireita(z);
+              }
+              // Caso 3 simétrico
+              this._registrarLog(`[RB] Caso 3 (Linha): recolorindo pai ${z.pai.produto.codigo} (PRETO) e avô ${z.pai.pai.produto.codigo} (VERMELHO).`);
+              z.pai.cor = COR_PRETO;
+              z.pai.pai.cor = COR_VERMELHO;
+              this._rotacaoEsquerda(z.pai.pai);
+            }
+          }
+        }
+        if (this.raiz.cor !== COR_PRETO) {
+          this.raiz.cor = COR_PRETO;
+          this._registrarLog(`[RB] Raiz ${this.raiz.produto.codigo} garantida como PRETA.`);
+        }
+      }
+
+      /** Substitui a subárvore enraizada em u pela subárvore enraizada em v */
+      _transplantar(u, v) {
+        if (u.pai === this.NIL) {
+          this.raiz = v;
+        } else if (u === u.pai.esquerda) {
+          u.pai.esquerda = v;
+        } else {
+          u.pai.direita = v;
+        }
+        v.pai = u.pai;
+      }
+
+      /** Encontra o nó de menor chave em uma subárvore */
+      _minimo(no) {
+        let atual = no;
+        while (atual.esquerda !== this.NIL) {
+          atual = atual.esquerda;
+        }
+        return atual;
+      }
+
+      /** Exclusão completa com correção de déficit de preto */
+      remover(codigo) {
+        this.logs = [];
+        const busca = this.buscar(codigo);
+        if (!busca.encontrado) {
+          this._registrarLog(`[RB] Código ${codigo} não encontrado para exclusão.`);
+          return { removido: false, logs: [...this.logs] };
+        }
+
+        const z = busca.no;
+        let y = z;
+        let yCorOriginal = y.cor;
+        let x;
+
+        if (z.esquerda === this.NIL) {
+          x = z.direita;
+          this._transplantar(z, z.direita);
+        } else if (z.direita === this.NIL) {
+          x = z.esquerda;
+          this._transplantar(z, z.esquerda);
+        } else {
+          y = this._minimo(z.direita);
+          yCorOriginal = y.cor;
+          x = y.direita;
+          this._registrarLog(`[RB] Substituindo nó interno ${z.produto.codigo} pelo sucessor mínimo ${y.produto.codigo}.`);
+          if (y.pai === z) {
+            x.pai = y;
+          } else {
+            this._transplantar(y, y.direita);
+            y.direita = z.direita;
+            y.direita.pai = y;
+          }
+          this._transplantar(z, y);
+          y.esquerda = z.esquerda;
+          y.esquerda.pai = y;
+          y.cor = z.cor;
+        }
+
+        this._registrarLog(`[RB] Código ${codigo} removido (cor removida: ${yCorOriginal}).`);
+        if (yCorOriginal === COR_PRETO) {
+          this._corrigirRemocao(x);
+        }
+
+        // Restaura ponteiro pai do sentinela NIL
+        this.NIL.pai = this.NIL;
+        this.NIL.cor = COR_PRETO;
+        return { removido: true, logs: [...this.logs] };
+      }
+
+      /** Correção do déficit de preto pós-remoção (4 casos simétricos do irmão) */
+      _corrigirRemocao(x) {
+        while (x !== this.raiz && x.cor === COR_PRETO) {
+          if (x === x.pai.esquerda) {
+            let w = x.pai.direita;
+            if (w.cor === COR_VERMELHO) {
+              // Caso 1: Irmão vermelho
+              this._registrarLog(`[RB] Remoção Caso 1: irmão ${w.produto.codigo} vermelho -> recoloração + rotação esquerda.`);
+              w.cor = COR_PRETO;
+              x.pai.cor = COR_VERMELHO;
+              this._rotacaoEsquerda(x.pai);
+              w = x.pai.direita;
+            }
+            if (w.esquerda.cor === COR_PRETO && w.direita.cor === COR_PRETO) {
+              // Caso 2: Irmão preto e ambos os sobrinhos pretos
+              this._registrarLog(`[RB] Remoção Caso 2: sobrinhos pretos -> irmão ${w !== this.NIL ? w.produto.codigo : 'NIL'} recolorido para VERMELHO.`);
+              w.cor = COR_VERMELHO;
+              x = x.pai;
+            } else {
+              if (w.direita.cor === COR_PRETO) {
+                // Caso 3: Sobrinho direito preto e esquerdo vermelho
+                this._registrarLog(`[RB] Remoção Caso 3: rotação à direita no irmão ${w.produto.codigo}.`);
+                w.esquerda.cor = COR_PRETO;
+                w.cor = COR_VERMELHO;
+                this._rotacaoDireita(w);
+                w = x.pai.direita;
+              }
+              // Caso 4: Sobrinho direito vermelho
+              this._registrarLog(`[RB] Remoção Caso 4: recoloração final + rotação à esquerda no pai ${x.pai.produto.codigo}.`);
+              w.cor = x.pai.cor;
+              x.pai.cor = COR_PRETO;
+              w.direita.cor = COR_PRETO;
+              this._rotacaoEsquerda(x.pai);
+              x = this.raiz;
+            }
+          } else {
+            let w = x.pai.esquerda;
+            if (w.cor === COR_VERMELHO) {
+              // Caso 1 simétrico
+              this._registrarLog(`[RB] Remoção Caso 1 (simétrico): irmão ${w.produto.codigo} vermelho -> recoloração + rotação direita.`);
+              w.cor = COR_PRETO;
+              x.pai.cor = COR_VERMELHO;
+              this._rotacaoDireita(x.pai);
+              w = x.pai.esquerda;
+            }
+            if (w.direita.cor === COR_PRETO && w.esquerda.cor === COR_PRETO) {
+              // Caso 2 simétrico
+              this._registrarLog(`[RB] Remoção Caso 2 (simétrico): sobrinhos pretos -> irmão ${w !== this.NIL ? w.produto.codigo : 'NIL'} recolorido para VERMELHO.`);
+              w.cor = COR_VERMELHO;
+              x = x.pai;
+            } else {
+              if (w.esquerda.cor === COR_PRETO) {
+                // Caso 3 simétrico
+                this._registrarLog(`[RB] Remoção Caso 3 (simétrico): rotação à esquerda no irmão ${w.produto.codigo}.`);
+                w.direita.cor = COR_PRETO;
+                w.cor = COR_VERMELHO;
+                this._rotacaoEsquerda(w);
+                w = x.pai.esquerda;
+              }
+              // Caso 4 simétrico
+              this._registrarLog(`[RB] Remoção Caso 4 (simétrico): recoloração final + rotação à direita no pai ${x.pai.produto.codigo}.`);
+              w.cor = x.pai.cor;
+              x.pai.cor = COR_PRETO;
+              w.esquerda.cor = COR_PRETO;
+              this._rotacaoDireita(x.pai);
+              x = this.raiz;
+            }
+          }
+        }
+        x.cor = COR_PRETO;
+      }
+
+      /** Percurso Em-Ordem retornando lista de produtos ordenados por código */
+      emOrdem() {
+        const lista = [];
+        const visitar = (no) => {
+          if (no === this.NIL) return;
+          visitar(no.esquerda);
+          lista.push(no.produto);
+          visitar(no.direita);
+        };
+        visitar(this.raiz);
+        return lista;
+      }
+
+      contarNos() {
+        return this.emOrdem().length;
+      }
+
+      obterAltura() {
+        const h = (no) => (no === this.NIL ? 0 : 1 + Math.max(h(no.esquerda), h(no.direita)));
+        return h(this.raiz);
+      }
+
+      /** Validação matemática completa das 4 propriedades Rubro-Negras + BST */
+      validarPropriedades() {
+        const erros = [];
+
+        // (a) Raiz é preta
+        if (this.raiz !== this.NIL && this.raiz.cor !== COR_PRETO) {
+          erros.push('Violação (a): a raiz não é PRETA.');
+        }
+
+        let alturaNegraReferencia = null;
+
+        const verificar = (no, min, max, pretosAteAqui) => {
+          if (no === this.NIL) {
+            const totalPretos = pretosAteAqui + 1; // inclui sentinela NIL preta
+            if (alturaNegraReferencia === null) {
+              alturaNegraReferencia = totalPretos;
+            } else if (totalPretos !== alturaNegraReferencia) {
+              erros.push(`Violação (c): altura negra divergente (${totalPretos} vs ${alturaNegraReferencia}).`);
+            }
+            return;
+          }
+
+          // (d) Ordem estrita BST
+          const cod = no.produto.codigo;
+          if (cod <= min || cod >= max) {
+            erros.push(`Violação (d): ordem BST inválida no código ${cod}.`);
+          }
+
+          // (b) Nenhum nó vermelho pode ter filho vermelho
+          if (no.cor === COR_VERMELHO) {
+            if (no.esquerda.cor === COR_VERMELHO || no.direita.cor === COR_VERMELHO) {
+              erros.push(`Violação (b): nó vermelho ${cod} possui filho vermelho.`);
+            }
+          }
+
+          const proximoPretos = pretosAteAqui + (no.cor === COR_PRETO ? 1 : 0);
+          verificar(no.esquerda, min, cod, proximoPretos);
+          verificar(no.direita, cod, max, proximoPretos);
+        };
+
+        verificar(this.raiz, -Infinity, Infinity, 0);
+
+        return {
+          valido: erros.length === 0,
+          alturaNegra: this.raiz === this.NIL ? 0 : (alturaNegraReferencia - 1),
+          erros
+        };
+      }
+    }
+
+    /* =======================================================================
+     * 3. ÁRVORE NÃO-BINÁRIA 2-3-4 (B-TREE GRAU MÍNIMO t = 2) — MANUAL
+     * ======================================================================= */
+    let proximoIdNo234 = 1;
+
+    class No234 {
+      constructor(folha = true) {
+        this.id = proximoIdNo234++;
+        this.chaves = []; // 1 a 3 objetos Produto ordenados por codigo
+        this.filhos = []; // 0 ou chaves.length + 1 nós filhos
+        this.folha = folha;
+      }
+
+      estaCheio() {
+        return this.chaves.length === 3;
+      }
+    }
+
+    class Arvore234 {
+      constructor() {
+        this.raiz = new No234(true);
+        this.logs = [];
+      }
+
+      _registrarLog(msg) {
+        this.logs.push(msg);
+      }
+
+      /** Busca retornando produto, id do nó e lista de IDs do caminho percorrido */
+      buscar(codigo) {
+        const alvo = Number(codigo);
+        const caminhoIds = [];
+        const caminhoResumo = [];
+        let atual = this.raiz;
+
+        while (atual) {
+          caminhoIds.push(atual.id);
+          caminhoResumo.push('[' + atual.chaves.map(c => c.codigo).join(' | ') + ']');
+          let i = 0;
+          while (i < atual.chaves.length && alvo > atual.chaves[i].codigo) {
+            i++;
+          }
+          if (i < atual.chaves.length && alvo === atual.chaves[i].codigo) {
+            return { encontrado: true, produto: atual.chaves[i], noId: atual.id, caminhoIds, caminhoResumo };
+          }
+          if (atual.folha) {
+            return { encontrado: false, produto: null, noId: null, caminhoIds, caminhoResumo };
+          }
+          atual = atual.filhos[i];
+        }
+        return { encontrado: false, produto: null, noId: null, caminhoIds, caminhoResumo };
+      }
+
+      /** Divide o filho cheio (3 chaves) no índice i promovendo a chave mediana */
+      _dividirFilho(pai, i) {
+        const y = pai.filhos[i];
+        const z = new No234(y.folha);
+        const mediana = y.chaves[1];
+
+        z.chaves = [y.chaves[2]];
+        y.chaves = [y.chaves[0]];
+
+        if (!y.folha) {
+          z.filhos = [y.filhos[2], y.filhos[3]];
+          y.filhos = [y.filhos[0], y.filhos[1]];
+        }
+
+        pai.chaves.splice(i, 0, mediana);
+        pai.filhos.splice(i + 1, 0, z);
+
+        this._registrarLog(`[2-3-4] Split (Divisão): mediana ${mediana.codigo} promovida ao pai; nó dividido em [${y.chaves[0].codigo}] e [${z.chaves[0].codigo}].`);
+      }
+
+      /** Inserção com Split Top-Down e atualização sem duplicação */
+      inserir(produto) {
+        this.logs = [];
+        const copia = produto.clonar();
+
+        // Verifica repetição antes de fazer qualquer split
+        const busca = this.buscar(copia.codigo);
+        if (busca.encontrado) {
+          busca.produto.atualizarCom(copia);
+          this._registrarLog(`[2-3-4] Chave repetida ${copia.codigo}: registro atualizado no nó existente (sem duplicação).`);
+          return { status: 'atualizado', logs: [...this.logs] };
+        }
+
+        const r = this.raiz;
+        if (r.estaCheio()) {
+          const novaRaiz = new No234(false);
+          novaRaiz.filhos.push(r);
+          this.raiz = novaRaiz;
+          this._dividirFilho(novaRaiz, 0);
+          this._inserirNaoCheio(novaRaiz, copia);
+        } else {
+          this._inserirNaoCheio(r, copia);
+        }
+
+        this._registrarLog(`[2-3-4] Código ${copia.codigo} inserido com sucesso.`);
+        return { status: 'inserido', logs: [...this.logs] };
+      }
+
+      _inserirNaoCheio(no, produto) {
+        let i = no.chaves.length - 1;
+        if (no.folha) {
+          no.chaves.push(produto);
+          while (i >= 0 && produto.codigo < no.chaves[i].codigo) {
+            no.chaves[i + 1] = no.chaves[i];
+            i--;
+          }
+          no.chaves[i + 1] = produto;
+        } else {
+          while (i >= 0 && produto.codigo < no.chaves[i].codigo) {
+            i--;
+          }
+          i++;
+          // Split preventivo antes de descer para filho cheio
+          if (no.filhos[i].estaCheio()) {
+            this._dividirFilho(no, i);
+            if (produto.codigo > no.chaves[i].codigo) {
+              i++;
+            }
+          }
+          this._inserirNaoCheio(no.filhos[i], produto);
+        }
+      }
+
+      /** Exclusão Top-Down completa (Predecessor/Sucessor, Empréstimo e Fusão) */
+      remover(codigo) {
+        this.logs = [];
+        const alvo = Number(codigo);
+        if (this.raiz.chaves.length === 0) {
+          return { removido: false, logs: ['[2-3-4] Árvore vazia.'] };
+        }
+
+        // Verifica se a chave existe para evitar fusões desnecessárias
+        const busca = this.buscar(alvo);
+        if (!busca.encontrado) {
+          this._registrarLog(`[2-3-4] Código ${alvo} não encontrado para exclusão.`);
+          return { removido: false, logs: [...this.logs] };
+        }
+
+        this._removerDoNo(this.raiz, alvo);
+
+        // Se a raiz ficou sem chaves e possui filho, o primeiro filho vira a nova raiz
+        if (this.raiz.chaves.length === 0 && !this.raiz.folha) {
+          this.raiz = this.raiz.filhos[0];
+          this._registrarLog(`[2-3-4] Raiz ficou vazia após fusão -> altura reduzida; nova raiz: [${this.raiz.chaves.map(c => c.codigo).join(' | ')}].`);
+        }
+
+        this._registrarLog(`[2-3-4] Código ${alvo} removido mantendo todas as folhas na mesma profundidade.`);
+        return { removido: true, logs: [...this.logs] };
+      }
+
+      _obterPredecessor(no) {
+        let atual = no;
+        while (!atual.folha) {
+          atual = atual.filhos[atual.filhos.length - 1];
+        }
+        return atual.chaves[atual.chaves.length - 1];
+      }
+
+      _obterSucessor(no) {
+        let atual = no;
+        while (!atual.folha) {
+          atual = atual.filhos[0];
+        }
+        return atual.chaves[0];
+      }
+
+      _emprestarDoAnterior(no, idx) {
+        const filho = no.filhos[idx];
+        const irmao = no.filhos[idx - 1];
+        const chavePai = no.chaves[idx - 1];
+        const chaveIrmao = irmao.chaves.pop();
+
+        filho.chaves.unshift(chavePai);
+        if (!filho.folha) {
+          filho.filhos.unshift(irmao.filhos.pop());
+        }
+        no.chaves[idx - 1] = chaveIrmao;
+
+        this._registrarLog(`[2-3-4] Empréstimo do irmão esquerdo: ${chaveIrmao.codigo} sobe ao pai, ${chavePai.codigo} desce ao filho.`);
+      }
+
+      _emprestarDoProximo(no, idx) {
+        const filho = no.filhos[idx];
+        const irmao = no.filhos[idx + 1];
+        const chavePai = no.chaves[idx];
+        const chaveIrmao = irmao.chaves.shift();
+
+        filho.chaves.push(chavePai);
+        if (!filho.folha) {
+          filho.filhos.push(irmao.filhos.shift());
+        }
+        no.chaves[idx] = chaveIrmao;
+
+        this._registrarLog(`[2-3-4] Empréstimo do irmão direito: ${chaveIrmao.codigo} sobe ao pai, ${chavePai.codigo} desce ao filho.`);
+      }
+
+      _fundirFilhos(no, idx) {
+        const filho = no.filhos[idx];
+        const irmao = no.filhos[idx + 1];
+        const chaveSeparadora = no.chaves[idx];
+
+        filho.chaves.push(chaveSeparadora, ...irmao.chaves);
+        if (!filho.folha) {
+          filho.filhos.push(...irmao.filhos);
+        }
+
+        no.chaves.splice(idx, 1);
+        no.filhos.splice(idx + 1, 1);
+
+        this._registrarLog(`[2-3-4] Fusão (Merge): chave separadora ${chaveSeparadora.codigo} desceu fundindo dois nós em [${filho.chaves.map(c => c.codigo).join(' | ')}].`);
+      }
+
+      _removerDoNo(no, codigo) {
+        let idx = 0;
+        while (idx < no.chaves.length && no.chaves[idx].codigo < codigo) {
+          idx++;
+        }
+
+        // Caso A: A chave está neste nó
+        if (idx < no.chaves.length && no.chaves[idx].codigo === codigo) {
+          if (no.folha) {
+            no.chaves.splice(idx, 1);
+            return;
+          }
+
+          const filhoEsq = no.filhos[idx];
+          const filhoDir = no.filhos[idx + 1];
+
+          if (filhoEsq.chaves.length >= 2) {
+            const pred = this._obterPredecessor(filhoEsq);
+            no.chaves[idx] = pred.clonar();
+            this._registrarLog(`[2-3-4] Chave interna ${codigo} substituída pelo predecessor ${pred.codigo}.`);
+            this._removerDoNo(filhoEsq, pred.codigo);
+          } else if (filhoDir.chaves.length >= 2) {
+            const suc = this._obterSucessor(filhoDir);
+            no.chaves[idx] = suc.clonar();
+            this._registrarLog(`[2-3-4] Chave interna ${codigo} substituída pelo sucessor ${suc.codigo}.`);
+            this._removerDoNo(filhoDir, suc.codigo);
+          } else {
+            this._fundirFilhos(no, idx);
+            this._removerDoNo(filhoEsq, codigo);
+          }
+          return;
+        }
+
+        // Caso B: A chave não está neste nó
+        if (no.folha) return;
+
+        // Garante que o filho destino tenha ao menos 2 chaves antes de descer
+        if (no.filhos[idx].chaves.length === 1) {
+          if (idx > 0 && no.filhos[idx - 1].chaves.length >= 2) {
+            this._emprestarDoAnterior(no, idx);
+          } else if (idx < no.chaves.length && no.filhos[idx + 1].chaves.length >= 2) {
+            this._emprestarDoProximo(no, idx);
+          } else {
+            if (idx < no.chaves.length) {
+              this._fundirFilhos(no, idx);
+            } else {
+              this._fundirFilhos(no, idx - 1);
+              idx = idx - 1;
+            }
+          }
+        }
+
+        this._removerDoNo(no.filhos[idx], codigo);
+      }
+
+      /** Percurso Em-Ordem retornando lista de produtos ordenados */
+      emOrdem() {
+        const lista = [];
+        const visitar = (no) => {
+          for (let i = 0; i < no.chaves.length; i++) {
+            if (!no.folha) visitar(no.filhos[i]);
+            lista.push(no.chaves[i]);
+          }
+          if (!no.folha && no.filhos.length > no.chaves.length) {
+            visitar(no.filhos[no.chaves.length]);
+          }
+        };
+        if (this.raiz.chaves.length > 0) visitar(this.raiz);
+        return lista;
+      }
+
+      contarRegistros() {
+        return this.emOrdem().length;
+      }
+
+      obterNiveis() {
+        if (this.raiz.chaves.length === 0) return 0;
+        let niveis = 1;
+        let atual = this.raiz;
+        while (!atual.folha && atual.filhos.length > 0) {
+          niveis++;
+          atual = atual.filhos[0];
+        }
+        return niveis;
+      }
+
+      /** Validação matemática completa das 4 propriedades da Árvore 2-3-4 */
+      validarPropriedades() {
+        const erros = [];
+        if (this.raiz.chaves.length === 0) {
+          return { valido: this.raiz.folha, erros: this.raiz.folha ? [] : ['Raiz vazia não é folha.'] };
+        }
+
+        let profundidadeFolhaRef = null;
+
+        const verificar = (no, nivel, min, max) => {
+          // (c) Cada nó não-vazio tem entre 1 e 3 chaves
+          if (no.chaves.length < 1 || no.chaves.length > 3) {
+            erros.push(`Violação (c): nó #${no.id} com ${no.chaves.length} chaves.`);
+          }
+
+          // (b) Chaves ordenadas em cada nó e respeitando limites
+          for (let i = 0; i < no.chaves.length; i++) {
+            const c = no.chaves[i].codigo;
+            if (c <= min || c >= max) {
+              erros.push(`Violação de intervalo: chave ${c} fora de (${min}, ${max}).`);
+            }
+            if (i > 0 && no.chaves[i].codigo <= no.chaves[i - 1].codigo) {
+              erros.push(`Violação (b): chaves fora de ordem no nó #${no.id}.`);
+            }
+          }
+
+          if (no.folha) {
+            // (a) Todas as folhas na mesma profundidade
+            if (profundidadeFolhaRef === null) {
+              profundidadeFolhaRef = nivel;
+            } else if (nivel !== profundidadeFolhaRef) {
+              erros.push(`Violação (a): folha no nível ${nivel} difere da referência ${profundidadeFolhaRef}.`);
+            }
+            if (no.filhos.length !== 0) {
+              erros.push(`Folha #${no.id} possui filhos.`);
+            }
+          } else {
+            // (d) Número de filhos igual a chaves + 1 em nós internos
+            if (no.filhos.length !== no.chaves.length + 1) {
+              erros.push(`Violação (d): nó interno #${no.id} tem ${no.chaves.length} chaves mas ${no.filhos.length} filhos.`);
+            }
+            for (let i = 0; i < no.filhos.length; i++) {
+              const limInf = i === 0 ? min : no.chaves[i - 1].codigo;
+              const limSup = i === no.chaves.length ? max : no.chaves[i].codigo;
+              verificar(no.filhos[i], nivel + 1, limInf, limSup);
+            }
+          }
+        };
+
+        verificar(this.raiz, 0, -Infinity, Infinity);
+        return { valido: erros.length === 0, erros };
+      }
+    }
+
+    /* =======================================================================
+     * 4. ÁRVORE k-D (ESPACIAL 2D) — IMPLEMENTAÇÃO MANUAL
+     * ======================================================================= */
+    class NoKD {
+      constructor(x, y, profundidade) {
+        this.x = Number(x);
+        this.y = Number(y);
+        this.profundidade = profundidade;
+        this.eixo = profundidade % 2 === 0 ? 'X' : 'Y';
+        this.esquerda = null;
+        this.direita = null;
+      }
+    }
+
+    class ArvoreKD {
+      constructor() {
+        this.raiz = null;
+      }
+
+      inserir(x, y) {
+        const px = Number(x);
+        const py = Number(y);
+        const inserirRec = (no, prof) => {
+          if (!no) return new NoKD(px, py, prof);
+          if (no.x === px && no.y === py) return no; // evita ponto idêntico
+          const compararX = prof % 2 === 0;
+          if (compararX) {
+            if (px < no.x) no.esquerda = inserirRec(no.esquerda, prof + 1);
+            else no.direita = inserirRec(no.direita, prof + 1);
+          } else {
+            if (py < no.y) no.esquerda = inserirRec(no.esquerda, prof + 1);
+            else no.direita = inserirRec(no.direita, prof + 1);
+          }
+          return no;
+        };
+        this.raiz = inserirRec(this.raiz, 0);
+      }
+
+      /** Busca do Vizinho Mais Próximo (Nearest Neighbor Search com poda) */
+      buscarVizinhoMaisProximo(alvoX, alvoY) {
+        const ax = Number(alvoX);
+        const ay = Number(alvoY);
+        let melhor = null;
+        let melhorDist = Infinity;
+        const visitados = [];
+
+        const distancia = (n) => Math.hypot(n.x - ax, n.y - ay);
+
+        const buscarRec = (no) => {
+          if (!no) return;
+          visitados.push(`(${no.x},${no.y})`);
+          const d = distancia(no);
+          if (d < melhorDist) {
+            melhorDist = d;
+            melhor = no;
+          }
+
+          const diff = no.eixo === 'X' ? ax - no.x : ay - no.y;
+          const primeiro = diff < 0 ? no.esquerda : no.direita;
+          const segundo = diff < 0 ? no.direita : no.esquerda;
+
+          buscarRec(primeiro);
+          // Só explora o ramo oposto se a esfera de busca cruzar o hiperplano divisor
+          if (Math.abs(diff) < melhorDist) {
+            buscarRec(segundo);
+          }
+        };
+
+        buscarRec(this.raiz);
+        return { alvo: { x: ax, y: ay }, melhor, distancia: melhorDist, visitados };
+      }
+
+      contarNos() {
+        const c = (n) => (n ? 1 + c(n.esquerda) + c(n.direita) : 0);
+        return c(this.raiz);
+      }
+    }
+
+    const PONTOS_KD_PADRAO = [
+      [6, 7],
+      [3, 4],
+      [8, 6],
+      [1, 2],
+      [10, 8],
+    ];
+
+    /* =======================================================================
+     * 5. ESTADO GLOBAL DA APLICAÇÃO
+     * ======================================================================= */
+    const state = {
+      rb: new ArvoreRubroNegra(),
+      t234: new Arvore234(),
+      kd: new ArvoreKD(),
+      zoom: 1.0,
+      viewMode: 'both', // 'both' | 'rb' | '234'
+      activeTab: 'arvores',
+      highlight: {
+        codigo: null,
+        rbCaminho: [],
+        t234CaminhoIds: [],
+        t234NoAlvoId: null,
+      },
+      kdLastQuery: null,
+      logsGlobais: [],
+      exclusaoPendente: null,
+    };
+
+    /* =======================================================================
+     * 6. UTILITÁRIOS DE FORMATAÇÃO, TEMA E TOASTS
+     * ======================================================================= */
+    function formatarMoeda(valor) {
+      return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      renderizarTudo();
+    }
+
+    function mostrarToast(titulo, mensagem, tipo = 'info') {
+      const container = document.getElementById('toastContainer');
+      const estilos = {
+        success: 'bg-emerald-600 text-white border-emerald-500',
+        error: 'bg-red-600 text-white border-red-500',
+        warning: 'bg-amber-500 text-white border-amber-400',
+        info: 'bg-slate-900 dark:bg-indigo-600 text-white border-slate-700 dark:border-indigo-500',
+      };
+      const el = document.createElement('div');
+      el.className = `pointer-events-auto rounded-2xl border px-4 py-3 shadow-lg transition-all duration-300 transform translate-y-2 opacity-0 ${estilos[tipo] || estilos.info}`;
+      el.innerHTML = `
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <div class="text-xs font-bold">${escapeHtml(titulo)}</div>
+            <div class="text-[11px] opacity-95 mt-0.5">${escapeHtml(mensagem)}</div>
+          </div>
+          <button onclick="this.parentElement.parentElement.remove()" class="text-xs opacity-75 hover:opacity-100 font-bold">✕</button>
+        </div>
+      `;
+      container.appendChild(el);
+      requestAnimationFrame(() => {
+        el.classList.remove('translate-y-2', 'opacity-0');
+      });
+      setTimeout(() => {
+        el.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => el.remove(), 300);
+      }, 4200);
+    }
+
+    function adicionarLogs(tituloOperacao, logsArray) {
+      const hora = new Date().toLocaleTimeString('pt-BR');
+      state.logsGlobais.unshift({ hora, titulo: tituloOperacao, itens: logsArray });
+      if (state.logsGlobais.length > 25) state.logsGlobais.pop();
+      renderLogs();
+    }
+
+    function limparLogs() {
+      state.logsGlobais = [];
+      renderLogs();
+    }
+
+    function renderLogs() {
+      const box = document.getElementById('logContainer');
+      if (state.logsGlobais.length === 0) {
+        box.innerHTML = `<div class="text-slate-400 italic py-2">Nenhuma operação registrada ainda. Cadastre, busque ou exclua um produto para observar o balanceamento.</div>`;
+        return;
+      }
+      box.innerHTML = state.logsGlobais.map((entry) => {
+        const linhas = entry.itens.map((l) => {
+          let cor = 'text-slate-700 dark:text-slate-300';
+          if (l.includes('Rotação') || l.includes('Split') || l.includes('Fusão')) cor = 'text-indigo-700 dark:text-indigo-300 font-semibold';
+          else if (l.includes('Recoloração') || l.includes('recolor') || l.includes('Empréstimo')) cor = 'text-amber-700 dark:text-amber-300';
+          else if (l.includes('repetida')) cor = 'text-blue-700 dark:text-blue-300 font-semibold';
+          else if (l.includes('removido')) cor = 'text-red-700 dark:text-red-300';
+          return `<div class="${cor} pl-3 border-l-2 border-slate-200 dark:border-slate-700">${escapeHtml(l)}</div>`;
+        }).join('');
+        return `
+          <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 p-2.5 space-y-1">
+            <div class="flex items-center justify-between text-[11px] font-bold text-slate-900 dark:text-slate-100">
+              <span>${escapeHtml(entry.titulo)}</span>
+              <span class="text-slate-400 font-normal">${entry.hora}</span>
+            </div>
+            ${linhas}
+          </div>
+        `;
+      }).join('');
+    }
+
+    /* =======================================================================
+     * 7. CARGA INICIAL & SINCRONIZAÇÃO DE MÉTRICAS
+     * ======================================================================= */
+    function restaurarCargaInicial(silencioso = false) {
+      state.rb = new ArvoreRubroNegra();
+      state.t234 = new Arvore234();
+      limparDestaques(false);
+      fecharInspector();
+      document.getElementById('resultadoBuscaBox').classList.add('hidden');
+      cancelarExclusaoPendente();
+
+      const resumoLogs = [];
+      for (const item of CARGA_INICIAL_PRODUTOS) {
+        const p = new Produto(item.codigo, item.nome, item.categoria, item.preco, item.estoque);
+        state.rb.inserir(p);
+        state.t234.inserir(p);
+      }
+      resumoLogs.push(`[Sistema] 21 produtos carregados simultaneamente na Rubro-Negra e na Árvore 2-3-4.`);
+      resumoLogs.push(`[RB] Altura final: ${state.rb.obterAltura()} | Altura negra: ${state.rb.validarPropriedades().alturaNegra}.`);
+      resumoLogs.push(`[2-3-4] Total de níveis: ${state.t234.obterNiveis()} (todas as folhas no nível ${state.t234.obterNiveis() - 1}).`);
+
+      state.logsGlobais = [];
+      adicionarLogs('Carga Inicial (21 Produtos)', resumoLogs);
+      renderizarTudo();
+
+      if (!silencioso) {
+        mostrarToast('Base Restaurada', 'Os 21 produtos iniciais foram recarregados nas duas árvores.', 'info');
+      }
+    }
+
+    function resetarArvoreKD(silencioso = false) {
+      state.kd = new ArvoreKD();
+      state.kdLastQuery = null;
+      for (const [x, y] of PONTOS_KD_PADRAO) {
+        state.kd.inserir(x, y);
+      }
+      document.getElementById('kdResultadoBusca').classList.add('hidden');
+      renderizarKD();
+      if (!silencioso) {
+        mostrarToast('Árvore k-D Restaurada', 'Os 5 pontos padrão (6,7), (3,4), (8,6), (1,2), (10,8) foram recarregados.', 'info');
+      }
+    }
+
+    function atualizarMetricas() {
+      const rbCount = state.rb.contarNos();
+      const rbHeight = state.rb.obterAltura();
+      const t234Count = state.t234.contarRegistros();
+      const t234Levels = state.t234.obterNiveis();
+
+      const valRb = state.rb.validarPropriedades();
+      const val234 = state.t234.validarPropriedades();
+      const tudoOk = valRb.valido && val234.valido && rbCount === t234Count;
+
+      document.getElementById('metricRbCount').textContent = rbCount;
+      document.getElementById('metricRbHeight').textContent = rbHeight;
+      document.getElementById('metric234Count').textContent = t234Count;
+      document.getElementById('metric234Levels').textContent = t234Levels;
+      document.getElementById('tabListCount').textContent = rbCount;
+      document.getElementById('rbBlackHeightTag').textContent = `Altura Negra: ${valRb.alturaNegra}`;
+
+      const badge = document.getElementById('badgeIntegrity');
+      const badgeText = document.getElementById('badgeIntegrityText');
+      if (tudoOk) {
+        badge.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold text-emerald-700 dark:text-emerald-300';
+        badgeText.textContent = 'Integridade Válida';
+      } else {
+        badge.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-xs font-semibold text-red-700 dark:text-red-300';
+        badgeText.textContent = 'Violação Detectada';
+      }
+    }
+
+    /* =======================================================================
+     * 8. RENDERIZAÇÃO SVG — ÁRVORE RUBRO-NEGRA (ZERO SOBREPOSIÇÃO)
+     * ======================================================================= */
+    function renderizarRubroNegraSVG() {
+      const container = document.getElementById('rbSvgContainer');
+      const tree = state.rb;
+
+      if (tree.raiz === tree.NIL) {
+        container.innerHTML = `<div class="py-12 text-sm text-slate-400">Árvore Rubro-Negra vazia.</div>`;
+        return;
+      }
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const NODE_R = 22;
+      const LEVEL_H = 74;
+      const MIN_SLOT = 56;
+      const HALF_EMPTY = 28;
+      const PAD_X = 36;
+      const PAD_Y = 38;
+
+      // Calcula largura proporcional de cada subárvore para impedir qualquer sobreposição
+      const widths = new Map();
+      const calcWidth = (no) => {
+        if (no === tree.NIL) return 0;
+        const leftW = no.esquerda !== tree.NIL ? calcWidth(no.esquerda) : 0;
+        const rightW = no.direita !== tree.NIL ? calcWidth(no.direita) : 0;
+        const total = Math.max(MIN_SLOT, (leftW || HALF_EMPTY) + (rightW || HALF_EMPTY));
+        widths.set(no, { total, leftW: leftW || HALF_EMPTY, rightW: rightW || HALF_EMPTY });
+        return total;
+      };
+
+      const totalW = calcWidth(tree.raiz);
+      const altura = tree.obterAltura();
+      const svgW = Math.max(640, totalW + PAD_X * 2);
+      const svgH = Math.max(200, altura * LEVEL_H + PAD_Y * 1.6);
+
+      // Calcula coordenadas (x, y) de cada nó
+      const coords = new Map();
+      const assignPos = (no, startX, depth) => {
+        if (no === tree.NIL) return;
+        const info = widths.get(no);
+        const x = startX + info.leftW;
+        const y = PAD_Y + depth * LEVEL_H;
+        coords.set(no, { x, y });
+        if (no.esquerda !== tree.NIL) {
+          assignPos(no.esquerda, startX, depth + 1);
+        }
+        if (no.direita !== tree.NIL) {
+          assignPos(no.direita, x, depth + 1);
+        }
+      };
+
+      const offsetX = (svgW - totalW) / 2;
+      assignPos(tree.raiz, offsetX, 0);
+
+      const pathSet = new Set(state.highlight.rbCaminho);
+      const targetCode = state.highlight.codigo;
+
+      let edgesSvg = '';
+      let nodesSvg = '';
+
+      const buildSvg = (no) => {
+        if (no === tree.NIL) return;
+        const { x, y } = coords.get(no);
+        const cod = no.produto.codigo;
+
+        // Arestas para filhos
+        [no.esquerda, no.direita].forEach((filho) => {
+          if (filho !== tree.NIL) {
+            const fc = coords.get(filho);
+            const inPath = pathSet.has(cod) && pathSet.has(filho.produto.codigo);
+            const strokeColor = inPath ? '#f59e0b' : (isDark ? '#475569' : '#94a3b8');
+            const strokeW = inPath ? 3.5 : 2;
+            edgesSvg += `<line x1="${x}" y1="${y}" x2="${fc.x}" y2="${fc.y}" stroke="${strokeColor}" stroke-width="${strokeW}" stroke-linecap="round" />`;
+            buildSvg(filho);
+          }
+        });
+
+        const isTarget = targetCode !== null && cod === targetCode;
+        const isOnPath = pathSet.has(cod);
+        const fill = no.cor === COR_VERMELHO ? '#dc2626' : '#1e293b';
+        const stroke = isTarget ? '#f59e0b' : (isOnPath ? '#fbbf24' : (isDark ? '#e2e8f0' : '#ffffff'));
+        const strokeWidth = isTarget ? 4 : (isOnPath ? 3 : 2);
+
+        const tooltip = `SKU ${cod} • ${no.produto.nome} (${formatarMoeda(no.produto.preco)}) • Cor: ${no.cor}`;
+
+        nodesSvg += `
+          <g class="svg-node" onclick="inspecionarNoRB(${cod})">
+            <title>${escapeHtml(tooltip)}</title>
+            ${isTarget ? `<circle cx="${x}" cy="${y}" r="${NODE_R + 6}" fill="none" stroke="#f59e0b" class="highlight-ring" />` : ''}
+            <circle cx="${x}" cy="${y}" r="${NODE_R}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" />
+            <text x="${x}" y="${y + 4.5}" text-anchor="middle" fill="#ffffff" font-size="12.5" font-weight="700" font-family="JetBrains Mono, monospace">${cod}</text>
+          </g>
+        `;
+      };
+
+      buildSvg(tree.raiz);
+
+      const scaledW = Math.round(svgW * state.zoom);
+      const scaledH = Math.round(svgH * state.zoom);
+
+      container.innerHTML = `
+        <svg width="${scaledW}" height="${scaledH}" viewBox="0 0 ${svgW} ${svgH}" class="select-none">
+          ${edgesSvg}
+          ${nodesSvg}
+        </svg>
+      `;
+    }
+
+    /* =======================================================================
+     * 9. RENDERIZAÇÃO SVG — ÁRVORE 2-3-4 (MULTI-CHAVES SEM SOBREPOSIÇÃO)
+     * ======================================================================= */
+    function renderizar234SVG() {
+      const container = document.getElementById('t234SvgContainer');
+      const tree = state.t234;
+
+      if (tree.raiz.chaves.length === 0) {
+        container.innerHTML = `<div class="py-12 text-sm text-slate-400">Árvore 2-3-4 vazia.</div>`;
+        return;
+      }
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const CELL_W = 46;
+      const NODE_H = 38;
+      const LEVEL_H = 88;
+      const GAP_X = 22;
+      const PAD_X = 32;
+      const PAD_Y = 34;
+
+      const nodeWidths = new Map();
+      const subtreeWidths = new Map();
+
+      const calcLayout = (no) => {
+        const nw = Math.max(1, no.chaves.length) * CELL_W;
+        nodeWidths.set(no, nw);
+        if (no.folha || no.filhos.length === 0) {
+          subtreeWidths.set(no, nw + GAP_X);
+          return nw + GAP_X;
+        }
+        let sumChildren = 0;
+        for (const f of no.filhos) {
+          sumChildren += calcLayout(f);
+        }
+        const total = Math.max(nw + GAP_X, sumChildren);
+        subtreeWidths.set(no, total);
+        return total;
+      };
+
+      const totalW = calcLayout(tree.raiz);
+      const niveis = tree.obterNiveis();
+      const svgW = Math.max(680, totalW + PAD_X * 2);
+      const svgH = Math.max(190, niveis * LEVEL_H + PAD_Y * 1.4);
+
+      const coords = new Map();
+      const assignPos = (no, startX, depth) => {
+        const subW = subtreeWidths.get(no);
+        const y = PAD_Y + depth * LEVEL_H;
+
+        if (no.folha || no.filhos.length === 0) {
+          coords.set(no, { x: startX + subW / 2, y });
+          return;
+        }
+
+        // Posiciona os filhos e centraliza o pai entre o primeiro e o último filho
+        let sumChildren = 0;
+        for (const f of no.filhos) sumChildren += subtreeWidths.get(f);
+        let curX = startX + (subW - sumChildren) / 2;
+
+        for (const f of no.filhos) {
+          assignPos(f, curX, depth + 1);
+          curX += subtreeWidths.get(f);
+        }
+
+        const firstChildX = coords.get(no.filhos[0]).x;
+        const lastChildX = coords.get(no.filhos[no.filhos.length - 1]).x;
+        coords.set(no, { x: (firstChildX + lastChildX) / 2, y });
+      };
+
+      const offsetX = (svgW - totalW) / 2;
+      assignPos(tree.raiz, offsetX, 0);
+
+      const pathIds = new Set(state.highlight.t234CaminhoIds);
+      const targetCode = state.highlight.codigo;
+
+      let edgesSvg = '';
+      let nodesSvg = '';
+
+      // Rótulos de nível à esquerda
+      let levelsBgSvg = '';
+      for (let lvl = 0; lvl < niveis; lvl++) {
+        const ly = PAD_Y + lvl * LEVEL_H + NODE_H / 2 + 4;
+        levelsBgSvg += `<text x="12" y="${ly}" fill="${isDark ? '#64748b' : '#94a3b8'}" font-size="10.5" font-weight="600" font-family="Inter, sans-serif">N${lvl}</text>`;
+      }
+
+      const buildSvg = (no) => {
+        const { x, y } = coords.get(no);
+        const nw = nodeWidths.get(no);
+        const leftEdge = x - nw / 2;
+
+        // Arestas saindo das posições divisoras entre as chaves do nó
+        if (!no.folha) {
+          no.filhos.forEach((filho, idx) => {
+            const fc = coords.get(filho);
+            // Ponto de saída: borda esquerda (idx=0), divisórias entre células, borda direita (idx=k)
+            const anchorX = leftEdge + idx * CELL_W;
+            const anchorY = y + NODE_H;
+            const inPath = pathIds.has(no.id) && pathIds.has(filho.id);
+            const strokeColor = inPath ? '#f59e0b' : (isDark ? '#475569' : '#94a3b8');
+            const strokeW = inPath ? 3.2 : 1.8;
+
+            edgesSvg += `<line x1="${anchorX}" y1="${anchorY}" x2="${fc.x}" y2="${fc.y}" stroke="${strokeColor}" stroke-width="${strokeW}" stroke-linecap="round" />`;
+            buildSvg(filho);
+          });
+        }
+
+        // Cor de fundo segundo o tipo de nó (Nó-2, Nó-3, Nó-4)
+        const k = no.chaves.length;
+        let fill = '#4f46e5'; // Nó-2 (índigo)
+        if (k === 2) fill = '#2563eb'; // Nó-3 (azul)
+        if (k === 3) fill = '#7c3aed'; // Nó-4 (violeta)
+
+        const isOnPath = pathIds.has(no.id);
+        const hasTarget = targetCode !== null && no.chaves.some(c => c.codigo === targetCode);
+        const borderColor = hasTarget ? '#f59e0b' : (isOnPath ? '#fbbf24' : (isDark ? '#cbd5e1' : '#ffffff'));
+        const borderWidth = hasTarget ? 3.5 : (isOnPath ? 2.5 : 1.8);
+
+        const resumoTooltip = no.chaves.map(c => `${c.codigo}: ${c.nome}`).join(' | ');
+
+        let cellsSvg = '';
+        no.chaves.forEach((prod, idx) => {
+          const cx = leftEdge + idx * CELL_W;
+          const isExactKey = targetCode !== null && prod.codigo === targetCode;
+          if (isExactKey) {
+            cellsSvg += `<rect x="${cx + 1.5}" y="${y + 1.5}" width="${CELL_W - 3}" height="${NODE_H - 3}" rx="6" fill="#f59e0b" />`;
+          }
+          if (idx > 0) {
+            cellsSvg += `<line x1="${cx}" y1="${y + 4}" x2="${cx}" y2="${y + NODE_H - 4}" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" />`;
+          }
+          cellsSvg += `<text x="${cx + CELL_W / 2}" y="${y + NODE_H / 2 + 4.5}" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="700" font-family="JetBrains Mono, monospace">${prod.codigo}</text>`;
+        });
+
+        nodesSvg += `
+          <g class="svg-node" onclick="inspecionarNo234(${no.id})">
+            <title>${escapeHtml(resumoTooltip)}</title>
+            ${hasTarget ? `<rect x="${leftEdge - 5}" y="${y - 5}" width="${nw + 10}" height="${NODE_H + 10}" rx="12" fill="none" stroke="#f59e0b" class="highlight-ring" />` : ''}
+            <rect x="${leftEdge}" y="${y}" width="${nw}" height="${NODE_H}" rx="9" fill="${fill}" stroke="${borderColor}" stroke-width="${borderWidth}" />
+            ${cellsSvg}
+          </g>
+        `;
+      };
+
+      buildSvg(tree.raiz);
+
+      const scaledW = Math.round(svgW * state.zoom);
+      const scaledH = Math.round(svgH * state.zoom);
+
+      container.innerHTML = `
+        <svg width="${scaledW}" height="${scaledH}" viewBox="0 0 ${svgW} ${svgH}" class="select-none">
+          ${levelsBgSvg}
+          ${edgesSvg}
+          ${nodesSvg}
+        </svg>
+      `;
+    }
+
+    /* =======================================================================
+     * 10. INSPETOR DE NÓ AO CLICAR NOS SVGs
+     * ======================================================================= */
+    function inspecionarNoRB(codigo) {
+      const res = state.rb.buscar(codigo);
+      if (!res.encontrado) return;
+      const p = res.produto;
+      const corBadge = res.no.cor === COR_VERMELHO
+        ? '<span class="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold">VERMELHO</span>'
+        : '<span class="px-2 py-0.5 rounded-full bg-slate-800 text-white text-[10px] font-bold">PRETO</span>';
+
+      const card = document.getElementById('nodeInspectorCard');
+      const content = document.getElementById('nodeInspectorContent');
+      content.innerHTML = `
+        <div class="flex flex-wrap items-center gap-2 mb-1">
+          <span class="font-bold text-slate-900 dark:text-white">Nó Rubro-Negro — Código ${p.codigo}</span>
+          ${corBadge}
+          <span class="text-xs text-slate-500 dark:text-slate-400">Pai: ${res.no.pai !== state.rb.NIL ? res.no.pai.produto.codigo : 'Raiz'}</span>
+        </div>
+        <div class="text-slate-700 dark:text-slate-300">
+          <strong>${escapeHtml(p.nome)}</strong> • Categoria: ${escapeHtml(p.categoria)} • Preço: <strong>${formatarMoeda(p.preco)}</strong> • Estoque: <strong>${p.estoque} un.</strong>
+        </div>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <button onclick="carregarNoFormulario(${p.codigo})" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold">Editar no Formulário</button>
+          <button onclick="prepararExclusaoPorCodigo(${p.codigo})" class="px-3 py-1 rounded-lg bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 hover:bg-red-200 text-xs font-semibold">Excluir Código ${p.codigo}</button>
+        </div>
+      `;
+      card.classList.remove('hidden');
+    }
+
+    function encontrarNo234PorId(no, id) {
+      if (!no) return null;
+      if (no.id === id) return no;
+      for (const f of no.filhos) {
+        const achado = encontrarNo234PorId(f, id);
+        if (achado) return achado;
+      }
+      return null;
+    }
+
+    function inspecionarNo234(noId) {
+      const no = encontrarNo234PorId(state.t234.raiz, noId);
+      if (!no) return;
+      const tipo = `Nó-${no.chaves.length + 1} (${no.chaves.length} chave${no.chaves.length > 1 ? 's' : ''}, ${no.folha ? 'Folha' : no.filhos.length + ' filhos'})`;
+      const itensHtml = no.chaves.map(p => `
+        <div class="flex flex-wrap items-center justify-between gap-2 py-1.5 border-t border-slate-200/70 dark:border-slate-700/70 first:border-t-0">
+          <div>
+            <span class="font-mono font-bold text-indigo-700 dark:text-indigo-300">#${p.codigo}</span>
+            <strong class="ml-1">${escapeHtml(p.nome)}</strong>
+            <span class="text-slate-500 dark:text-slate-400">(${escapeHtml(p.categoria)})</span> —
+            <strong>${formatarMoeda(p.preco)}</strong> • ${p.estoque} un.
+          </div>
+          <div class="flex gap-1.5">
+            <button onclick="carregarNoFormulario(${p.codigo})" class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-semibold">Editar</button>
+            <button onclick="prepararExclusaoPorCodigo(${p.codigo})" class="px-2.5 py-1 rounded-lg bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 text-[11px] font-semibold">Excluir</button>
+          </div>
+        </div>
+      `).join('');
+
+      const card = document.getElementById('nodeInspectorCard');
+      const content = document.getElementById('nodeInspectorContent');
+      content.innerHTML = `
+        <div class="font-bold text-slate-900 dark:text-white mb-1.5">Árvore 2-3-4 — ${tipo}</div>
+        <div>${itensHtml}</div>
+      `;
+      card.classList.remove('hidden');
+    }
+
+    function fecharInspector() {
+      document.getElementById('nodeInspectorCard').classList.add('hidden');
+    }
+
+    /* =======================================================================
+     * 11. RENDERIZAÇÃO DA TABELA DE PRODUTOS (ABA 2)
+     * ======================================================================= */
+    function renderTabelaProdutos() {
+      const tbody = document.getElementById('tabelaProdutosBody');
+      const filtro = (document.getElementById('inpFiltroTabela').value || '').trim().toLowerCase();
+      const produtos = state.rb.emOrdem();
+
+      const filtrados = produtos.filter((p) => {
+        if (!filtro) return true;
+        return String(p.codigo).includes(filtro)
+          || p.nome.toLowerCase().includes(filtro)
+          || p.categoria.toLowerCase().includes(filtro);
+      });
+
+      if (filtrados.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">Nenhum produto encontrado para o filtro informado.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtrados.map((p) => {
+        const destaque = state.highlight.codigo === p.codigo ? 'bg-amber-50/90 dark:bg-amber-950/30' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40';
+        return `
+          <tr class="${destaque} transition">
+            <td class="py-2.5 px-4 font-mono font-bold text-indigo-700 dark:text-indigo-300">${p.codigo}</td>
+            <td class="py-2.5 px-4 font-medium text-slate-900 dark:text-slate-100">${escapeHtml(p.nome)}</td>
+            <td class="py-2.5 px-4">
+              <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">${escapeHtml(p.categoria)}</span>
+            </td>
+            <td class="py-2.5 px-4 text-right font-mono">${formatarMoeda(p.preco)}</td>
+            <td class="py-2.5 px-4 text-center font-mono">
+              <span class="px-2 py-0.5 rounded-md ${p.estoque <= 10 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'} font-semibold">
+                ${p.estoque}
+              </span>
+            </td>
+            <td class="py-2.5 px-4 text-right whitespace-nowrap space-x-1">
+              <button onclick="carregarNoFormulario(${p.codigo})" title="Carregar no formulário"
+                class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-slate-700 dark:text-slate-200 text-xs font-semibold transition">
+                Editar
+              </button>
+              <button onclick="destacarCodigoNasArvores(${p.codigo})" title="Destacar nas Árvores"
+                class="px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 text-amber-800 dark:text-amber-300 text-xs font-semibold transition">
+                Localizar
+              </button>
+              <button onclick="prepararExclusaoPorCodigo(${p.codigo})" title="Excluir produto"
+                class="px-2.5 py-1 rounded-lg bg-red-100 dark:bg-red-900/40 hover:bg-red-200 text-red-700 dark:text-red-300 text-xs font-semibold transition">
+                Excluir
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    /* =======================================================================
+     * 12. RENDERIZAÇÃO DA ÁRVORE k-D (PLANO CARTESIANO + ÁRVORE BINÁRIA)
+     * ======================================================================= */
+    function renderizarKD() {
+      renderizarKDPlanoSVG();
+      renderizarKDArvoreSVG();
+    }
+
+    function renderizarKDPlanoSVG() {
+      const container = document.getElementById('kdPlaneSvgContainer');
+      const isDark = document.documentElement.classList.contains('dark');
+      const size = 400;
+      const pad = 40;
+      const inner = size - pad * 2;
+      const MAX_COORD = 12;
+
+      const toSvgX = (x) => pad + (x / MAX_COORD) * inner;
+      const toSvgY = (y) => size - pad - (y / MAX_COORD) * inner;
+
+      let gridSvg = '';
+      for (let i = 0; i <= MAX_COORD; i += 2) {
+        const gx = toSvgX(i);
+        const gy = toSvgY(i);
+        const stroke = isDark ? '#1e293b' : '#e2e8f0';
+        const txtColor = isDark ? '#94a3b8' : '#64748b';
+        gridSvg += `<line x1="${gx}" y1="${pad}" x2="${gx}" y2="${size - pad}" stroke="${stroke}" stroke-width="1" />`;
+        gridSvg += `<line x1="${pad}" y1="${gy}" x2="${size - pad}" y2="${gy}" stroke="${stroke}" stroke-width="1" />`;
+        gridSvg += `<text x="${gx}" y="${size - pad + 16}" text-anchor="middle" fill="${txtColor}" font-size="10" font-family="JetBrains Mono">${i}</text>`;
+        gridSvg += `<text x="${pad - 12}" y="${gy + 3.5}" text-anchor="end" fill="${txtColor}" font-size="10" font-family="JetBrains Mono">${i}</text>`;
+      }
+
+      // Eixos principais
+      const axisColor = isDark ? '#64748b' : '#475569';
+      gridSvg += `<rect x="${pad}" y="${pad}" width="${inner}" height="${inner}" fill="none" stroke="${axisColor}" stroke-width="1.5" />`;
+      gridSvg += `<text x="${size / 2}" y="${size - 6}" text-anchor="middle" fill="${axisColor}" font-size="11" font-weight="700">Eixo X (Dimensão 0)</text>`;
+      gridSvg += `<text x="14" y="${size / 2}" text-anchor="middle" transform="rotate(-90 14 ${size / 2})" fill="${axisColor}" font-size="11" font-weight="700">Eixo Y (Dimensão 1)</text>`;
+
+      let cutsSvg = '';
+      let ptsSvg = '';
+
+      const desenharRegiao = (no, minX, maxX, minY, maxY) => {
+        if (!no) return;
+        const sx = toSvgX(no.x);
+        const sy = toSvgY(no.y);
+
+        if (no.eixo === 'X') {
+          cutsSvg += `<line x1="${sx}" y1="${toSvgY(minY)}" x2="${sx}" y2="${toSvgY(maxY)}" stroke="#dc2626" stroke-width="2" stroke-dasharray="${no.profundidade > 0 ? '5,3' : 'none'}" opacity="0.8" />`;
+          desenharRegiao(no.esquerda, minX, no.x, minY, maxY);
+          desenharRegiao(no.direita, no.x, maxX, minY, maxY);
+        } else {
+          cutsSvg += `<line x1="${toSvgX(minX)}" y1="${sy}" x2="${toSvgX(maxX)}" y2="${sy}" stroke="#2563eb" stroke-width="2" stroke-dasharray="5,3" opacity="0.8" />`;
+          desenharRegiao(no.esquerda, minX, maxX, minY, no.y);
+          desenharRegiao(no.direita, minX, maxX, no.y, maxY);
+        }
+
+        const isBest = state.kdLastQuery && state.kdLastQuery.melhor === no;
+        const fillPt = isBest ? '#f59e0b' : (no.eixo === 'X' ? '#dc2626' : '#2563eb');
+        const labelY = sy - 10 < pad + 10 ? sy + 18 : sy - 10;
+
+        ptsSvg += `
+          <g>
+            ${isBest ? `<circle cx="${sx}" cy="${sy}" r="11" fill="none" stroke="#f59e0b" class="highlight-ring" />` : ''}
+            <circle cx="${sx}" cy="${sy}" r="6" fill="${fillPt}" stroke="#ffffff" stroke-width="2" />
+            <text x="${sx + 6}" y="${labelY}" fill="${isDark ? '#f1f5f9' : '#0f172a'}" font-size="11" font-weight="700" font-family="JetBrains Mono">(${no.x},${no.y})</text>
+          </g>
+        `;
+      };
+
+      desenharRegiao(state.kd.raiz, 0, MAX_COORD, 0, MAX_COORD);
+
+      // Se houver busca de vizinho mais próximo ativa, desenha alvo, círculo de raio e linha conectora
+      let querySvg = '';
+      if (state.kdLastQuery && state.kdLastQuery.melhor) {
+        const { alvo, melhor, distancia } = state.kdLastQuery;
+        const qx = toSvgX(alvo.x);
+        const qy = toSvgY(alvo.y);
+        const bx = toSvgX(melhor.x);
+        const by = toSvgY(melhor.y);
+        const rPx = (distancia / MAX_COORD) * inner;
+
+        querySvg += `
+          <circle cx="${qx}" cy="${qy}" r="${rPx}" fill="rgba(245, 158, 11, 0.12)" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3" />
+          <line x1="${qx}" y1="${qy}" x2="${bx}" y2="${by}" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="3,3" />
+          <polygon points="${qx},${qy - 7} ${qx + 7},${qy} ${qx},${qy + 7} ${qx - 7},${qy}" fill="#f59e0b" stroke="#ffffff" stroke-width="1.5" />
+          <text x="${qx + 9}" y="${qy + 4}" fill="#d97706" font-size="11" font-weight="800" font-family="JetBrains Mono">Alvo (${alvo.x},${alvo.y})</text>
+        `;
+      }
+
+      container.innerHTML = `
+        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="max-w-full h-auto select-none">
+          ${gridSvg}
+          ${cutsSvg}
+          ${querySvg}
+          ${ptsSvg}
+        </svg>
+      `;
+    }
+
+    function renderizarKDArvoreSVG() {
+      const container = document.getElementById('kdTreeSvgContainer');
+      const isDark = document.documentElement.classList.contains('dark');
+      const raiz = state.kd.raiz;
+
+      if (!raiz) {
+        container.innerHTML = `<div class="py-10 text-sm text-slate-400">Árvore k-D vazia.</div>`;
+        return;
+      }
+
+      const LEVEL_H = 76;
+      const MIN_SLOT = 82;
+      const HALF_EMPTY = 42;
+      const PAD_X = 48;
+      const PAD_Y = 38;
+
+      const widths = new Map();
+      const getHeight = (n) => (n ? 1 + Math.max(getHeight(n.esquerda), getHeight(n.direita)) : 0);
+
+      const calcW = (n) => {
+        if (!n) return 0;
+        const lw = n.esquerda ? calcW(n.esquerda) : 0;
+        const rw = n.direita ? calcW(n.direita) : 0;
+        const total = Math.max(MIN_SLOT, (lw || HALF_EMPTY) + (rw || HALF_EMPTY));
+        widths.set(n, { total, leftW: lw || HALF_EMPTY });
+        return total;
+      };
+
+      const totalW = calcW(raiz);
+      const altura = getHeight(raiz);
+      const svgW = Math.max(400, totalW + PAD_X * 2);
+      const svgH = Math.max(240, altura * LEVEL_H + PAD_Y * 1.4);
+
+      const coords = new Map();
+      const assignPos = (n, startX, depth) => {
+        if (!n) return;
+        const info = widths.get(n);
+        const x = startX + info.leftW;
+        const y = PAD_Y + depth * LEVEL_H;
+        coords.set(n, { x, y });
+        if (n.esquerda) assignPos(n.esquerda, startX, depth + 1);
+        if (n.direita) assignPos(n.direita, x, depth + 1);
+      };
+
+      assignPos(raiz, (svgW - totalW) / 2, 0);
+
+      let labelsSvg = '';
+      for (let d = 0; d < altura; d++) {
+        const eixo = d % 2 === 0 ? 'X' : 'Y';
+        const cor = eixo === 'X' ? '#dc2626' : '#2563eb';
+        labelsSvg += `<text x="12" y="${PAD_Y + d * LEVEL_H + 4}" fill="${cor}" font-size="11" font-weight="700" font-family="Inter">N${d}: ${eixo}</text>`;
+      }
+
+      let edgesSvg = '';
+      let nodesSvg = '';
+
+      const draw = (n) => {
+        if (!n) return;
+        const { x, y } = coords.get(n);
+        [n.esquerda, n.direita].forEach((filho, idx) => {
+          if (filho) {
+            const fc = coords.get(filho);
+            edgesSvg += `<line x1="${x}" y1="${y}" x2="${fc.x}" y2="${fc.y}" stroke="${isDark ? '#475569' : '#94a3b8'}" stroke-width="2" />`;
+            const midX = (x + fc.x) / 2 + (idx === 0 ? -10 : 10);
+            const midY = (y + fc.y) / 2 - 2;
+            edgesSvg += `<text x="${midX}" y="${midY}" text-anchor="middle" fill="${isDark ? '#94a3b8' : '#64748b'}" font-size="10" font-weight="600">${idx === 0 ? '<' : '≥'}</text>`;
+            draw(filho);
+          }
+        });
+
+        const isBest = state.kdLastQuery && state.kdLastQuery.melhor === n;
+        const fill = isBest ? '#f59e0b' : (n.eixo === 'X' ? '#dc2626' : '#2563eb');
+        nodesSvg += `
+          <g>
+            ${isBest ? `<rect x="${x - 36}" y="${y - 21}" width="72" height="42" rx="14" fill="none" stroke="#f59e0b" class="highlight-ring" />` : ''}
+            <rect x="${x - 31}" y="${y - 16}" width="62" height="32" rx="11" fill="${fill}" stroke="#ffffff" stroke-width="2" />
+            <text x="${x}" y="${y + 4}" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="700" font-family="JetBrains Mono">(${n.x},${n.y})</text>
+          </g>
+        `;
+      };
+
+      draw(raiz);
+
+      container.innerHTML = `
+        <svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" class="max-w-full h-auto select-none">
+          ${labelsSvg}
+          ${edgesSvg}
+          ${nodesSvg}
+        </svg>
+      `;
+    }
+
+    function handleInserirPontoKD(event) {
+      event.preventDefault();
+      const x = Number(document.getElementById('kdAddX').value);
+      const y = Number(document.getElementById('kdAddY').value);
+      if (Number.isNaN(x) || Number.isNaN(y)) return;
+      state.kd.inserir(x, y);
+      state.kdLastQuery = null;
+      document.getElementById('kdResultadoBusca').classList.add('hidden');
+      renderizarKD();
+      mostrarToast('Ponto Inserido na k-D', `Ponto (${x}, ${y}) adicionado ao espaço 2D.`, 'success');
+      document.getElementById('kdAddX').value = '';
+      document.getElementById('kdAddY').value = '';
+    }
+
+    function handleBuscarVizinhoKD(event) {
+      event.preventDefault();
+      const x = Number(document.getElementById('kdQueryX').value);
+      const y = Number(document.getElementById('kdQueryY').value);
+      const res = state.kd.buscarVizinhoMaisProximo(x, y);
+      state.kdLastQuery = res;
+      renderizarKD();
+
+      const box = document.getElementById('kdResultadoBusca');
+      if (res.melhor) {
+        box.innerHTML = `
+          <strong>Vizinho mais próximo de (${x}, ${y}):</strong>
+          ponto <span class="font-mono font-bold">(${res.melhor.x}, ${res.melhor.y})</span>
+          à distância euclidiana <span class="font-mono font-bold">${res.distancia.toFixed(2)}</span>.
+          <span class="block mt-1 opacity-85">Nós visitados na busca (${res.visitados.length}/${state.kd.contarNos()}): ${res.visitados.join(' → ')}</span>
+        `;
+        box.classList.remove('hidden');
+      }
+    }
+
+    /* =======================================================================
+     * 13. OPERAÇÕES DA INTERFACE (CADASTRAR, BUSCAR, EXCLUIR, ABAS, ZOOM)
+     * ======================================================================= */
+    function handleSalvarProduto(event) {
+      event.preventDefault();
+      const codigo = parseInt(document.getElementById('inpCodigo').value, 10);
+      const nome = document.getElementById('inpNome').value.trim();
+      const categoria = document.getElementById('inpCategoria').value.trim();
+      const preco = parseFloat(document.getElementById('inpPreco').value);
+      const estoque = parseInt(document.getElementById('inpEstoque').value, 10);
+
+      if (!codigo || !nome || !categoria || Number.isNaN(preco) || Number.isNaN(estoque)) {
+        mostrarToast('Campos Inválidos', 'Preencha todos os campos corretamente.', 'error');
+        return;
+      }
+
+      const produto = new Produto(codigo, nome, categoria, preco, estoque);
+      const resRb = state.rb.inserir(produto);
+      const res234 = state.t234.inserir(produto);
+
+      // Destaca o nó inserido/atualizado
+      const bRb = state.rb.buscar(codigo);
+      const b234 = state.t234.buscar(codigo);
+      state.highlight = {
+        codigo,
+        rbCaminho: bRb.caminho,
+        t234CaminhoIds: b234.caminhoIds,
+        t234NoAlvoId: b234.noId,
+      };
+      document.getElementById('btnLimparDestaque').classList.remove('hidden');
+
+      const acao = resRb.status === 'atualizado' ? `Atualização (Código Repetido ${codigo})` : `Cadastro (Código ${codigo})`;
+      adicionarLogs(acao, [...resRb.logs, ...res234.logs]);
+      renderizarTudo();
+
+      if (resRb.status === 'atualizado') {
+        mostrarToast('Produto Atualizado (Sem Duplicar)', `Código ${codigo} já existia e foi atualizado nas duas árvores.`, 'info');
+      } else {
+        mostrarToast('Produto Cadastrado', `Código ${codigo} (${nome}) inserido e balanceado nas duas árvores.`, 'success');
+      }
+    }
+
+    function limparFormulario() {
+      document.getElementById('formProduto').reset();
+    }
+
+    function carregarNoFormulario(codigo) {
+      const res = state.rb.buscar(codigo);
+      if (!res.encontrado) return;
+      const p = res.produto;
+      document.getElementById('inpCodigo').value = p.codigo;
+      document.getElementById('inpNome').value = p.nome;
+      document.getElementById('inpCategoria').value = p.categoria;
+      document.getElementById('inpPreco').value = p.preco.toFixed(2);
+      document.getElementById('inpEstoque').value = p.estoque;
+      mostrarToast('Carregado para Edição', `Dados do código ${p.codigo} preenchidos no formulário.`, 'info');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function executarBuscaCodigo(codigo, mudarParaAbaArvores = false) {
+      const cod = parseInt(codigo, 10);
+      if (Number.isNaN(cod)) return null;
+
+      document.getElementById('inpBuscaCodigo').value = cod;
+      const resRb = state.rb.buscar(cod);
+      const res234 = state.t234.buscar(cod);
+
+      state.highlight = {
+        codigo: resRb.encontrado ? cod : null,
+        rbCaminho: resRb.caminho,
+        t234CaminhoIds: res234.caminhoIds,
+        t234NoAlvoId: res234.noId,
+      };
+      document.getElementById('btnLimparDestaque').classList.remove('hidden');
+
+      const box = document.getElementById('resultadoBuscaBox');
+      box.classList.remove('hidden');
+
+      if (resRb.encontrado && res234.encontrado) {
+        const p = resRb.produto;
+        box.className = 'mt-3 p-3 rounded-xl text-xs border bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 space-y-1.5';
+        box.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-amber-900 dark:text-amber-200">✓ Encontrado nas duas árvores</span>
+            <span class="font-mono font-bold px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100">#${p.codigo}</span>
+          </div>
+          <div class="text-slate-800 dark:text-slate-200">
+            <strong>${escapeHtml(p.nome)}</strong> (${escapeHtml(p.categoria)})<br/>
+            Preço: <strong>${formatarMoeda(p.preco)}</strong> • Estoque: <strong>${p.estoque} un.</strong>
+          </div>
+          <div class="pt-1 border-t border-amber-200/80 dark:border-amber-800/80 font-mono text-[11px] text-slate-600 dark:text-slate-300 space-y-0.5">
+            <div><strong class="text-red-700 dark:text-red-400">Caminho RB:</strong> ${resRb.caminho.join(' → ')}</div>
+            <div><strong class="text-indigo-700 dark:text-indigo-400">Caminho 2-3-4:</strong> ${res234.caminhoResumo.join(' → ')}</div>
+          </div>
+        `;
+        adicionarLogs(`Busca pelo Código ${cod} (Encontrado)`, [
+          `[RB] Caminho percorrido (${resRb.caminho.length} nós): ${resRb.caminho.join(' → ')}`,
+          `[2-3-4] Caminho percorrido (${res234.caminhoResumo.length} níveis): ${res234.caminhoResumo.join(' → ')}`
+        ]);
+      } else {
+        box.className = 'mt-3 p-3 rounded-xl text-xs border bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900 space-y-1';
+        box.innerHTML = `
+          <div class="font-bold text-red-700 dark:text-red-300">✕ Código ${cod} não encontrado</div>
+          <div class="text-slate-600 dark:text-slate-400">Nenhum produto com o código <strong class="font-mono">${cod}</strong> existe nas árvores.</div>
+          <div class="font-mono text-[11px] text-slate-500">Último nó visitado RB: ${resRb.caminho.join(' → ') || '—'}</div>
+        `;
+        adicionarLogs(`Busca pelo Código ${cod} (Não Encontrado)`, [
+          `[RB] Código ${cod} inexistente. Caminho verificado: ${resRb.caminho.join(' → ') || 'árvore vazia'}`,
+          `[2-3-4] Código ${cod} inexistente. Nós verificados: ${res234.caminhoResumo.join(' → ') || 'árvore vazia'}`
+        ]);
+      }
+
+      if (mudarParaAbaArvores) mudarAba('arvores');
+      renderizarTudo();
+      return { resRb, res234 };
+    }
+
+    function handleBuscarProduto(event) {
+      event.preventDefault();
+      const cod = document.getElementById('inpBuscaCodigo').value;
+      executarBuscaCodigo(cod, false);
+    }
+
+    function destacarCodigoNasArvores(codigo) {
+      executarBuscaCodigo(codigo, true);
+      mostrarToast('Produto Localizado', `Código ${codigo} destacado em dourado nas duas árvores.`, 'warning');
+    }
+
+    function prepararExclusaoPorCodigo(codigo) {
+      document.getElementById('inpExcluirCodigo').value = codigo;
+      const busca = state.rb.buscar(codigo);
+      const box = document.getElementById('confirmacaoExclusaoBox');
+      const txt = document.getElementById('confirmacaoExclusaoTexto');
+
+      if (!busca.encontrado) {
+        box.classList.add('hidden');
+        mostrarToast('Não Encontrado', `O código ${codigo} não existe nas árvores.`, 'warning');
+        return;
+      }
+
+      state.exclusaoPendente = Number(codigo);
+      txt.textContent = `Deseja realmente excluir o código ${codigo} (${busca.produto.nome}) das duas árvores?`;
+      box.classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function handlePrepararExclusao(event) {
+      event.preventDefault();
+      const cod = parseInt(document.getElementById('inpExcluirCodigo').value, 10);
+      if (Number.isNaN(cod)) return;
+      prepararExclusaoPorCodigo(cod);
+    }
+
+    function confirmarExclusaoPendente() {
+      if (state.exclusaoPendente === null) return;
+      const cod = state.exclusaoPendente;
+      state.exclusaoPendente = null;
+      document.getElementById('confirmacaoExclusaoBox').classList.add('hidden');
+      executarExclusaoImediata(cod);
+    }
+
+    function cancelarExclusaoPendente() {
+      state.exclusaoPendente = null;
+      document.getElementById('confirmacaoExclusaoBox').classList.add('hidden');
+    }
+
+    function executarExclusaoImediata(codigo) {
+      const resRb = state.rb.remover(codigo);
+      const res234 = state.t234.remover(codigo);
+
+      limparDestaques(false);
+      fecharInspector();
+      adicionarLogs(`Exclusão (Código ${codigo})`, [...resRb.logs, ...res234.logs]);
+      renderizarTudo();
+
+      if (resRb.removido && res234.removido) {
+        mostrarToast('Produto Excluído', `Código ${codigo} removido e árvores rebalanceadas com sucesso.`, 'success');
+      } else {
+        mostrarToast('Código Não Encontrado', `O código ${codigo} não foi localizado para exclusão.`, 'warning');
+      }
+    }
+
+    function limparDestaques(reRender = true) {
+      state.highlight = { codigo: null, rbCaminho: [], t234CaminhoIds: [], t234NoAlvoId: null };
+      document.getElementById('btnLimparDestaque').classList.add('hidden');
+      if (reRender) renderizarTudo();
+    }
+
+    function mudarAba(aba) {
+      state.activeTab = aba;
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+      document.getElementById(`tabPanel-${aba}`).classList.remove('hidden');
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.className = 'tab-btn flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800';
+      });
+      const activeBtn = document.getElementById(`tabBtn-${aba}`);
+      activeBtn.className = 'tab-btn flex-1 min-w-[140px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 bg-slate-900 text-white dark:bg-indigo-600 shadow-sm';
+
+      if (aba === 'arvores') {
+        renderizarRubroNegraSVG();
+        renderizar234SVG();
+      } else if (aba === 'lista') {
+        renderTabelaProdutos();
+      } else if (aba === 'kd') {
+        renderizarKD();
+      }
+    }
+
+    function setTreeViewMode(mode) {
+      state.viewMode = mode;
+      document.querySelectorAll('.view-mode-btn').forEach(b => {
+        b.className = 'view-mode-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition';
+      });
+      document.getElementById(`viewMode-${mode}`).className = 'view-mode-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-white dark:bg-indigo-600 transition';
+
+      document.getElementById('cardRbTree').classList.toggle('hidden', mode === '234');
+      document.getElementById('card234Tree').classList.toggle('hidden', mode === 'rb');
+    }
+
+    function ajustarZoom(delta) {
+      if (delta === 0) state.zoom = 1.0;
+      else state.zoom = Math.min(1.8, Math.max(0.55, +(state.zoom + delta).toFixed(2)));
+      document.getElementById('zoomLabel').textContent = `${Math.round(state.zoom * 100)}%`;
+      renderizarRubroNegraSVG();
+      renderizar234SVG();
+    }
+
+    function renderizarTudo() {
+      atualizarMetricas();
+      renderizarRubroNegraSVG();
+      renderizar234SVG();
+      renderTabelaProdutos();
+      if (state.activeTab === 'kd') renderizarKD();
+    }
+
+    /* =======================================================================
+     * 14. ROTEIRO DE DEMONSTRAÇÃO AO VIVO (6 PASSOS DO PDF)
+     * ======================================================================= */
+    function executarPassoDemo(passo) {
+      // Marca visualmente o botão do passo clicado
+      document.querySelectorAll('.demo-step-btn').forEach(b => b.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-950/50'));
+      const btn = document.getElementById(`demoBtn${passo}`);
+      if (btn) btn.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-950/50');
+
+      if (passo === 1) {
+        document.getElementById('inpFiltroTabela').value = '';
+        mudarAba('lista');
+        mostrarToast('Passo 1 — Listar', `Exibindo os ${state.rb.contarNos()} códigos ordenados pelo percurso em-ordem.`, 'info');
+      } else if (passo === 2) {
+        mudarAba('arvores');
+        const r999 = state.rb.buscar(999);
+        const r110 = executarBuscaCodigo(110, true);
+        const box = document.getElementById('resultadoBuscaBox');
+        box.innerHTML += `
+          <div class="mt-2 pt-2 border-t border-amber-300/70 dark:border-amber-800 text-red-700 dark:text-red-300 font-semibold">
+            ✕ Teste de inexistente (999): ${r999.encontrado ? 'Encontrado' : 'Não encontrado (confirmado nas duas árvores)'}
+          </div>
+        `;
+        mostrarToast('Passo 2 — Buscar 110 e 999', 'Código 110 (Switch) encontrado e destacado; código 999 confirmado inexistente.', 'warning');
+      } else if (passo === 3) {
+        const novo = new Produto(150, 'Roteador Wi-Fi 6', 'Redes', 429.90, 12);
+        const resRb = state.rb.inserir(novo);
+        const res234 = state.t234.inserir(novo);
+        document.getElementById('inpCodigo').value = 150;
+        document.getElementById('inpNome').value = 'Roteador Wi-Fi 6';
+        document.getElementById('inpCategoria').value = 'Redes';
+        document.getElementById('inpPreco').value = '429.90';
+        document.getElementById('inpEstoque').value = 12;
+
+        const bRb = state.rb.buscar(150);
+        const b234 = state.t234.buscar(150);
+        state.highlight = { codigo: 150, rbCaminho: bRb.caminho, t234CaminhoIds: b234.caminhoIds, t234NoAlvoId: b234.noId };
+        document.getElementById('btnLimparDestaque').classList.remove('hidden');
+
+        adicionarLogs('Passo 3 — Cadastrar Código 150', [...resRb.logs, ...res234.logs]);
+        mudarAba('arvores');
+        renderizarTudo();
+        mostrarToast('Passo 3 — Cadastrar 150', 'Roteador Wi-Fi 6 inserido nas duas árvores com balanceamento.', 'success');
+      } else if (passo === 4) {
+        const atualizado = new Produto(150, 'Roteador Wi-Fi 6 (AX3000)', 'Redes', 399.00, 20);
+        const resRb = state.rb.inserir(atualizado);
+        const res234 = state.t234.inserir(atualizado);
+        document.getElementById('inpCodigo').value = 150;
+        document.getElementById('inpNome').value = atualizado.nome;
+        document.getElementById('inpCategoria').value = atualizado.categoria;
+        document.getElementById('inpPreco').value = '399.00';
+        document.getElementById('inpEstoque').value = 20;
+
+        const bRb = state.rb.buscar(150);
+        const b234 = state.t234.buscar(150);
+        state.highlight = { codigo: 150, rbCaminho: bRb.caminho, t234CaminhoIds: b234.caminhoIds, t234NoAlvoId: b234.noId };
+        document.getElementById('btnLimparDestaque').classList.remove('hidden');
+
+        adicionarLogs('Passo 4 — Repetir Código 150 (Atualização)', [...resRb.logs, ...res234.logs]);
+        mudarAba('arvores');
+        renderizarTudo();
+        inspecionarNoRB(150);
+        mostrarToast('Passo 4 — Repetir 150', `Preço atualizado para R$ 399,00 e estoque para 20 sem duplicar nó (total: ${state.rb.contarNos()}).`, 'info');
+      } else if (passo === 5) {
+        executarExclusaoImediata(105);
+        executarBuscaCodigo(105, true);
+        mostrarToast('Passo 5 — Excluir 105', 'Código 105 removido das duas árvores e busca subsequente confirmou ausência.', 'error');
+      } else if (passo === 6) {
+        limparDestaques(false);
+        setTreeViewMode('both');
+        ajustarZoom(0);
+        mudarAba('arvores');
+        renderizarTudo();
+        mostrarToast('Passo 6 — Visualizar Estruturas', 'Exibindo Rubro-Negra e Árvore 2-3-4 completas com integridade validada.', 'success');
+      }
+    }
+
+    /* =======================================================================
+     * 15. SUÍTE DE TESTES AUTOMÁTICOS (6 BATERIAS EM INSTÂNCIAS ISOLADAS)
+     * ======================================================================= */
+    function executarSuiteDeTestes() {
+      const resultados = [];
+
+      const registrarTeste = (nome, passou, detalhe) => {
+        resultados.push({ nome, passou, detalhe });
+      };
+
+      try {
+        const rb = new ArvoreRubroNegra();
+        const t234 = new Arvore234();
+
+        // Teste 1: 21 inserções nas duas árvores
+        for (const item of CARGA_INICIAL_PRODUTOS) {
+          const p = new Produto(item.codigo, item.nome, item.categoria, item.preco, item.estoque);
+          rb.inserir(p);
+          t234.inserir(p);
+        }
+        const t1Ok = rb.contarNos() === 21 && t234.contarRegistros() === 21 && rb.validarPropriedades().valido && t234.validarPropriedades().valido;
+        registrarTeste(
+          '1. 21 Inserções nas Duas Árvores',
+          t1Ok,
+          `RB: ${rb.contarNos()} nós (altura ${rb.obterAltura()}) | 2-3-4: ${t234.contarRegistros()} registros (${t234.obterNiveis()} níveis).`
+        );
+
+        // Teste 2: Busca existente (110 = Switch) e inexistente (999)
+        const b110Rb = rb.buscar(110);
+        const b110_234 = t234.buscar(110);
+        const b999Rb = rb.buscar(999);
+        const b999_234 = t234.buscar(999);
+        const t2Ok = b110Rb.encontrado && b110Rb.produto.nome === 'Switch'
+          && b110_234.encontrado && b110_234.produto.preco === 155
+          && !b999Rb.encontrado && !b999_234.encontrado;
+        registrarTeste(
+          '2. Busca Existente (110) e Inexistente (999)',
+          t2Ok,
+          `110 encontrado como "${b110Rb.produto?.nome}" (R$ 155,00) em ambas; 999 retornou não encontrado.`
+        );
+
+        // Teste 3: Cadastro de 150 + Atualização de código repetido (150)
+        rb.inserir(new Produto(150, 'Roteador Wi-Fi 6', 'Redes', 429.90, 12));
+        t234.inserir(new Produto(150, 'Roteador Wi-Fi 6', 'Redes', 429.90, 12));
+        const antesContagem = rb.contarNos();
+        rb.inserir(new Produto(150, 'Roteador Wi-Fi 6 Pro', 'Redes', 399.00, 20));
+        t234.inserir(new Produto(150, 'Roteador Wi-Fi 6 Pro', 'Redes', 399.00, 20));
+        const p150Rb = rb.buscar(150).produto;
+        const p150_234 = t234.buscar(150).produto;
+        const t3Ok = antesContagem === 22 && rb.contarNos() === 22 && t234.contarRegistros() === 22
+          && p150Rb.preco === 399.00 && p150Rb.estoque === 20
+          && p150_234.preco === 399.00 && p150_234.estoque === 20;
+        registrarTeste(
+          '3. Atualização de Código Repetido (150)',
+          t3Ok,
+          `Contagem mantida em 22 nós sem duplicação; preço atualizado para R$ 399,00 e estoque para 20.`
+        );
+
+        // Teste 4: Exclusões em sequência (incluindo raiz, internos e folhas)
+        const sequenciaRemocao = [105, 120, 110, 135, 100, 155, 150];
+        let todasExcluidas = true;
+        let invariantesDuranteExclusao = true;
+        for (const cod of sequenciaRemocao) {
+          const r1 = rb.remover(cod);
+          const r2 = t234.remover(cod);
+          if (!r1.removido || !r2.removido) todasExcluidas = false;
+          if (rb.buscar(cod).encontrado || t234.buscar(cod).encontrado) todasExcluidas = false;
+          if (!rb.validarPropriedades().valido || !t234.validarPropriedades().valido) {
+            invariantesDuranteExclusao = false;
+          }
+        }
+        registrarTeste(
+          '4. Exclusões em Sequência (7 códigos)',
+          todasExcluidas && invariantesDuranteExclusao,
+          `Códigos [${sequenciaRemocao.join(', ')}] removidos com sucesso; buscas pós-exclusão retornaram falso.`
+        );
+
+        // Teste 5: Validação rigorosa das propriedades estruturais (RB e 2-3-4)
+        const valRb = rb.validarPropriedades();
+        const val234 = t234.validarPropriedades();
+        registrarTeste(
+          '5. Validação das Propriedades Estruturais',
+          valRb.valido && val234.valido,
+          `Rubro-Negra válida (altura negra = ${valRb.alturaNegra}, raiz preta, sem vermelho-vermelho); 2-3-4 válida (folhas no mesmo nível).`
+        );
+
+        // Teste 6: Contagem final e equivalência em-ordem entre as duas árvores
+        const listaRb = rb.emOrdem().map(p => p.codigo);
+        const lista234 = t234.emOrdem().map(p => p.codigo);
+        const mesmaOrdem = listaRb.length === 15 && lista234.length === 15 && listaRb.every((c, i) => c === lista234[i]);
+        registrarTeste(
+          '6. Contagem Final e Consistência Em-Ordem',
+          mesmaOrdem,
+          `Ambas encerraram com exatamente ${listaRb.length} registros em ordem crescente idêntica.`
+        );
+      } catch (err) {
+        registrarTeste('Exceção Inesperada', false, String(err));
+      }
+
+      const todosPassaram = resultados.every(r => r.passou);
+      const banner = document.getElementById('testBanner');
+      banner.classList.remove('hidden');
+
+      if (todosPassaram) {
+        banner.className = 'rounded-2xl p-4 border bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-800 flex items-center justify-between gap-3';
+        banner.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg font-extrabold shrink-0">✓</div>
+            <div>
+              <div class="text-sm sm:text-base font-extrabold text-emerald-800 dark:text-emerald-200 tracking-wide">TODOS OS TESTES PASSARAM (6/6)</div>
+              <div class="text-xs text-emerald-700 dark:text-emerald-300">Todas as invariantes matemáticas da Árvore Rubro-Negra e da Árvore 2-3-4 foram confirmadas após inserções, atualizações e exclusões.</div>
+            </div>
+          </div>
+        `;
+      } else {
+        banner.className = 'rounded-2xl p-4 border bg-red-50 dark:bg-red-950/50 border-red-300 dark:border-red-800';
+        banner.innerHTML = `<div class="text-sm font-bold text-red-800 dark:text-red-200">Alguns testes falharam. Verifique os detalhes abaixo.</div>`;
+      }
+
+      document.getElementById('testResultsList').innerHTML = resultados.map(r => `
+        <div class="p-3.5 rounded-xl border ${r.passou ? 'bg-slate-50 dark:bg-slate-800/50 border-emerald-200 dark:border-emerald-900/60' : 'bg-red-50 dark:bg-red-950/50 border-red-300 dark:border-red-800'}">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <span class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">${escapeHtml(r.nome)}</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${r.passou ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' : 'bg-red-600 text-white'}">
+              ${r.passou ? 'PASSOU' : 'FALHOU'}
+            </span>
+          </div>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">${escapeHtml(r.detalhe)}</p>
+        </div>
+      `).join('');
+    }
+
+    /* =======================================================================
+     * 16. INICIALIZAÇÃO AUTOMÁTICA AO CARREGAR A PÁGINA
+     * ======================================================================= */
+    window.addEventListener('DOMContentLoaded', () => {
+      restaurarCargaInicial(true);
+      resetarArvoreKD(true);
+      executarSuiteDeTestes();
+    });
+  </script>
+</body>
+</html>

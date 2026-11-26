@@ -1,2 +1,0 @@
-
-TODOS OS TESTES PASSARAM. Total de verifica??es: 43417
